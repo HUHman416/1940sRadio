@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
+import '../stations/radio_station.dart';
+
 enum RadioConnectionState { off, connecting, playing, error }
 
 class RadioPlayer extends ChangeNotifier {
-  static const fogPointUrl = 'https://streaming.live365.com/a25002';
-
   final Player _player = Player();
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<String>? _errorSubscription;
@@ -16,13 +16,17 @@ class RadioPlayer extends ChangeNotifier {
   double _volume = 72;
   String? _errorMessage;
   bool _poweredOn = false;
+  RadioStation _station = RadioStation.fogPoint;
 
   RadioConnectionState get connectionState => _connectionState;
   double get volume => _volume;
   String? get errorMessage => _errorMessage;
   bool get poweredOn => _poweredOn;
+  RadioStation get station => _station;
 
-  Future<void> initialize() async {
+  Future<void> initialize({RadioStation? initialStation}) async {
+    if (initialStation != null) _station = initialStation;
+
     _playingSubscription = _player.stream.playing.listen((playing) {
       if (!_poweredOn) return;
       _connectionState = playing
@@ -43,17 +47,7 @@ class RadioPlayer extends ChangeNotifier {
   Future<void> powerOn() async {
     if (_poweredOn) return;
     _poweredOn = true;
-    _errorMessage = null;
-    _connectionState = RadioConnectionState.connecting;
-    notifyListeners();
-
-    try {
-      await _player.open(Media(fogPointUrl), play: true);
-    } catch (error) {
-      _errorMessage = error.toString();
-      _connectionState = RadioConnectionState.error;
-      notifyListeners();
-    }
+    await _openCurrentStation();
   }
 
   Future<void> powerOff() async {
@@ -73,24 +67,37 @@ class RadioPlayer extends ChangeNotifier {
     }
   }
 
+  Future<void> tuneTo(RadioStation station) async {
+    _station = station;
+    _errorMessage = null;
+    notifyListeners();
+    if (_poweredOn) {
+      await _openCurrentStation();
+    }
+  }
+
   Future<void> retry() async {
     if (!_poweredOn) return;
-    _errorMessage = null;
-    _connectionState = RadioConnectionState.connecting;
-    notifyListeners();
-    try {
-      await _player.open(Media(fogPointUrl), play: true);
-    } catch (error) {
-      _errorMessage = error.toString();
-      _connectionState = RadioConnectionState.error;
-      notifyListeners();
-    }
+    await _openCurrentStation();
   }
 
   Future<void> setVolume(double value) async {
     _volume = value.clamp(0, 100).toDouble();
     await _player.setVolume(_volume);
     notifyListeners();
+  }
+
+  Future<void> _openCurrentStation() async {
+    _errorMessage = null;
+    _connectionState = RadioConnectionState.connecting;
+    notifyListeners();
+    try {
+      await _player.open(Media(_station.url), play: true);
+    } catch (error) {
+      _errorMessage = error.toString();
+      _connectionState = RadioConnectionState.error;
+      notifyListeners();
+    }
   }
 
   @override
