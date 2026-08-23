@@ -61,7 +61,7 @@ class RadioSystemHandler extends BaseAudioHandler {
       title: title,
       artist: artist,
       album: station.name,
-      extras: const {'isLiveStream': true},
+      isLive: true,
     ));
     playbackState.add(PlaybackState(
       controls: [
