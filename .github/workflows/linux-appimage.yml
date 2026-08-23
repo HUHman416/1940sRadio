@@ -3,7 +3,7 @@ name: Linux AppImage
 on:
   push:
     branches:
-      - hotfix-0.2.1
+      - build-0.3
       - main
   pull_request:
     branches:
@@ -49,22 +49,16 @@ jobs:
           flutter create . --platforms=linux --org com.huhman416 --project-name radio1940s
           rm -rf test
 
-      - name: Resolve dependencies
-        run: flutter pub get
-
-      - name: Analyze source
-        run: flutter analyze lib
-
-      - name: Build Linux release
-        run: flutter build linux --release
+      - run: flutter pub get
+      - run: flutter analyze lib
+      - run: flutter build linux --release
 
       - name: Package AppImage
-        run: bash scripts/package_appimage.sh 0.2.1
+        run: bash scripts/package_appimage.sh 0.3.0
 
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: 1940sRadio-0.2.1-Linux-x86_64
+          name: 1940sRadio-0.3.0-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
 
@@ -72,14 +66,17 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.2.1
-          name: Build 0.2.1
+          tag_name: v0.3.0
+          name: Build 0.3
           body: |
-            Linux startup hotfix for Build 0.2.
+            Build 0.3 adds the mobile receiver foundation and improves the desktop experience.
 
-            - Fixes a black-screen startup caused by calling a macOS-only window-manager method on Linux.
-            - Pinning now works by enabling/disabling the radio's own drag regions on Linux and Windows.
-            - Startup always transitions to the radio UI even if persistence or a desktop helper reports an error.
-            - Adds a visible startup indicator instead of an empty transparent surface.
+            - No-scroll responsive cabinet that scales to the available window.
+            - Portrait and landscape radio layouts.
+            - Cabinet-colored full window surface to eliminate the Linux black field around the radio.
+            - Best-effort ICY/Live365 Now Playing metadata.
+            - Android background playback integration with notification, lock-screen, Bluetooth, and headset media controls.
+            - iPhone/iPad background-audio and lock-screen media-control integration.
+            - Android APK and unsigned iOS build validation in CI.
           files: build/appimage/out/*.AppImage
           fail_on_unmatched_files: true
