@@ -1,7 +1,7 @@
 name: radio1940s
 description: A 1940s-inspired cross-platform internet radio with Fog Point Radio at its heart.
 publish_to: "none"
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -11,7 +11,8 @@ dependencies:
     sdk: flutter
   media_kit: ^1.2.6
   media_kit_libs_audio: ^1.0.7
-
+  shared_preferences: ^2.3.3
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:
