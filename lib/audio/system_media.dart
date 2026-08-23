@@ -12,7 +12,7 @@ bool get supportsSystemMediaControls => Platform.isAndroid || Platform.isIOS;
 Future<void> initializeSystemMediaControls() async {
   if (!supportsSystemMediaControls) return;
   final session = await AudioSession.instance;
-  await session.configure(const AudioSessionConfiguration.music());
+  await session.configure(AudioSessionConfiguration.music());
   radioSystemHandler = await AudioService.init(
     builder: RadioSystemHandler.new,
     config: const AudioServiceConfig(
@@ -46,7 +46,7 @@ class RadioSystemHandler extends BaseAudioHandler {
   }) {
     final raw = nowPlaying?.trim();
     String? artist;
-    String title = station.name;
+    var title = station.name;
     if (raw != null && raw.isNotEmpty) {
       final split = raw.indexOf(' - ');
       if (split > 0) {
@@ -76,11 +76,20 @@ class RadioSystemHandler extends BaseAudioHandler {
   }
 
   @override
-  Future<void> play() async => onPlay?.call();
+  Future<void> play() async {
+    final callback = onPlay;
+    if (callback != null) await callback();
+  }
 
   @override
-  Future<void> pause() async => onPause?.call();
+  Future<void> pause() async {
+    final callback = onPause;
+    if (callback != null) await callback();
+  }
 
   @override
-  Future<void> stop() async => onStop?.call();
+  Future<void> stop() async {
+    final callback = onStop;
+    if (callback != null) await callback();
+  }
 }
