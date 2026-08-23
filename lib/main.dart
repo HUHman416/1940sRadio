@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'audio/system_media.dart';
 import 'platform/desktop_window.dart';
-import 'ui/radio_screen.dart';
+import 'ui/radio_screen_v3.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
 
+  await initializeSystemMediaControls();
+
   if (isDesktopPlatform) {
     await windowManager.ensureInitialized();
     const options = WindowOptions(
-      size: Size(1080, 680),
-      minimumSize: Size(620, 460),
+      size: Size(1040, 610),
+      minimumSize: Size(560, 360),
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
@@ -42,8 +45,11 @@ class Radio1940sApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: '1940s Radio',
       color: Colors.transparent,
-      theme: ThemeData.dark(useMaterial3: true),
-      home: const RadioScreen(),
+      theme: ThemeData.dark(useMaterial3: true).copyWith(
+        scaffoldBackgroundColor: Colors.transparent,
+        canvasColor: Colors.transparent,
+      ),
+      home: const RadioScreenV3(),
     );
   }
 }
