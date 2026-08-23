@@ -15,7 +15,7 @@ Future<void> initializeSystemMediaControls() async {
   await session.configure(AudioSessionConfiguration.music());
   radioSystemHandler = await AudioService.init(
     builder: RadioSystemHandler.new,
-    config: const AudioServiceConfig(
+    config: AudioServiceConfig(
       androidNotificationChannelId: 'com.huhman416.radio1940s.playback',
       androidNotificationChannelName: '1940s Radio playback',
       androidNotificationOngoing: true,
