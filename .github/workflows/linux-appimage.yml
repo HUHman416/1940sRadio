@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - build-0.1
-    tags:
-      - 'v*'
+      - main
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-linux-appimage:
@@ -60,3 +59,21 @@ jobs:
           name: 1940sRadio-0.1.0-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          name: Build 0.1
+          body: |
+            First playable build of 1940sRadio.
+
+            - Fog Point Radio is preconfigured as the featured station.
+            - 1940s-inspired tabletop radio UI.
+            - Power, volume, stream connection state, and retry handling.
+            - Linux x86_64 AppImage package.
+
+            Fog Point stream: https://streaming.live365.com/a25002
+          files: build/appimage/out/*.AppImage
+          fail_on_unmatched_files: true
