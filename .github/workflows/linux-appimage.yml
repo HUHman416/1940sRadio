@@ -3,7 +3,7 @@ name: Linux AppImage
 on:
   push:
     branches:
-      - build-0.2
+      - hotfix-0.2.1
       - main
   pull_request:
     branches:
@@ -59,12 +59,12 @@ jobs:
         run: flutter build linux --release
 
       - name: Package AppImage
-        run: bash scripts/package_appimage.sh 0.2.0
+        run: bash scripts/package_appimage.sh 0.2.1
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 1940sRadio-0.2.0-Linux-x86_64
+          name: 1940sRadio-0.2.1-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
 
@@ -72,19 +72,14 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.2.0
-          name: Build 0.2
+          tag_name: v0.2.1
+          name: Build 0.2.1
           body: |
-            Build 0.2 expands 1940sRadio into a general internet-radio receiver while keeping Fog Point Radio at its heart.
+            Linux startup hotfix for Build 0.2.
 
-            - Frameless transparent desktop window: visually, the app is just the radio cabinet.
-            - Pin/position-lock control and draggable non-control surfaces.
-            - In-radio minimize and close controls.
-            - Six persistent, user-assignable station presets.
-            - Persistent station directory with custom direct stream URLs.
-            - Add, edit, remove, and tune saved stations.
-            - Current station name/subtitle and tuning needle update on the dial.
-            - Fog Point Radio remains the built-in featured/default station.
-            - Linux x86_64 AppImage package.
+            - Fixes a black-screen startup caused by calling a macOS-only window-manager method on Linux.
+            - Pinning now works by enabling/disabling the radio's own drag regions on Linux and Windows.
+            - Startup always transitions to the radio UI even if persistence or a desktop helper reports an error.
+            - Adds a visible startup indicator instead of an empty transparent surface.
           files: build/appimage/out/*.AppImage
           fail_on_unmatched_files: true

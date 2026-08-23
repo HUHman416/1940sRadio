@@ -1,7 +1,7 @@
 name: radio1940s
 description: A 1940s-inspired cross-platform internet radio with Fog Point Radio at its heart.
 publish_to: "none"
-version: 0.2.0+2
+version: 0.2.1+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

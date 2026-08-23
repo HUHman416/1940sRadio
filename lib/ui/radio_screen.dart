@@ -31,12 +31,18 @@ class _RadioScreenState extends State<RadioScreen> {
   }
 
   Future<void> _bootstrap() async {
-    await stations.load();
-    await radio.initialize(initialStation: stations.selectedStation);
-    if (isDesktopPlatform) {
-      await windowManager.setMovable(!stations.pinned);
+    try {
+      await stations.load();
+      await radio.initialize(initialStation: stations.selectedStation);
+    } catch (error, stackTrace) {
+      debugPrint('Radio bootstrap warning: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      try {
+        await radio.initialize(initialStation: RadioStation.fogPoint);
+      } catch (_) {}
+    } finally {
+      if (mounted) setState(() => ready = true);
     }
-    if (mounted) setState(() => ready = true);
   }
 
   Future<void> _selectStation(RadioStation station) async {
@@ -45,11 +51,7 @@ class _RadioScreenState extends State<RadioScreen> {
   }
 
   Future<void> _togglePin() async {
-    final next = !stations.pinned;
-    await stations.setPinned(next);
-    if (isDesktopPlatform) {
-      await windowManager.setMovable(!next);
-    }
+    await stations.setPinned(!stations.pinned);
   }
 
   Future<void> _showDirectory() async {
@@ -75,7 +77,13 @@ class _RadioScreenState extends State<RadioScreen> {
     if (!ready) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
-        body: SizedBox.shrink(),
+        body: Center(
+          child: SizedBox(
+            width: 34,
+            height: 34,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
       );
     }
 
@@ -90,7 +98,7 @@ class _RadioScreenState extends State<RadioScreen> {
               animation: radio,
               builder: (context, _) => AnimatedBuilder(
                 animation: stations,
-                builder: (context, _) => RadioCabinet(
+                builder: (context, _) => _RadioCabinet(
                   radio: radio,
                   stations: stations,
                   onSelectStation: _selectStation,
@@ -106,9 +114,8 @@ class _RadioScreenState extends State<RadioScreen> {
   }
 }
 
-class RadioCabinet extends StatelessWidget {
-  const RadioCabinet({
-    super.key,
+class _RadioCabinet extends StatelessWidget {
+  const _RadioCabinet({
     required this.radio,
     required this.stations,
     required this.onSelectStation,
@@ -124,7 +131,6 @@ class RadioCabinet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final on = radio.poweredOn;
     return Container(
       padding: const EdgeInsets.fromLTRB(28, 16, 28, 24),
       decoration: BoxDecoration(
@@ -141,38 +147,31 @@ class RadioCabinet extends StatelessWidget {
       ),
       child: Column(
         children: [
-          CabinetHeader(
-            pinned: stations.pinned,
-            onTogglePin: onTogglePin,
-          ),
+          _Header(pinned: stations.pinned, onTogglePin: onTogglePin),
           const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
-              final narrow = constraints.maxWidth < 700;
-              final speaker = MoveArea(
+              final speaker = _MoveArea(
                 enabled: !stations.pinned,
-                child: const SpeakerGrille(),
+                child: const _SpeakerGrille(),
               );
               final stationIndex = stations.stations.indexWhere(
                 (station) => station.id == stations.selectedStationId,
               );
-              final dial = DialPanel(
+              final dial = _DialPanel(
                 radio: radio,
                 stationCount: stations.stations.length,
                 stationIndex: stationIndex,
                 movable: !stations.pinned,
               );
-              return narrow
-                  ? Column(
-                      children: [speaker, const SizedBox(height: 22), dial],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(child: speaker),
-                        const SizedBox(width: 26),
-                        Expanded(child: dial),
-                      ],
-                    );
+              if (constraints.maxWidth < 700) {
+                return Column(children: [speaker, const SizedBox(height: 22), dial]);
+              }
+              return Row(children: [
+                Expanded(child: speaker),
+                const SizedBox(width: 26),
+                Expanded(child: dial),
+              ]);
             },
           ),
           const SizedBox(height: 24),
@@ -182,21 +181,21 @@ class RadioCabinet extends StatelessWidget {
             spacing: 22,
             runSpacing: 18,
             children: [
-              RadioKnob(
-                label: on ? 'POWER ON' : 'POWER OFF',
-                value: on ? .82 : .12,
+              _RadioKnob(
+                label: radio.poweredOn ? 'POWER ON' : 'POWER OFF',
+                value: radio.poweredOn ? .82 : .12,
                 onTap: radio.togglePower,
               ),
-              PresetBank(
+              _PresetBank(
                 store: stations,
                 currentStation: radio.station,
-                enabled: on,
+                enabled: radio.poweredOn,
                 onSelectStation: onSelectStation,
               ),
-              RadioKnob(
+              _RadioKnob(
                 label: 'VOLUME ${radio.volume.round()}',
                 value: radio.volume / 100,
-                onChanged: (normalized) => radio.setVolume(normalized * 100),
+                onChanged: (value) => radio.setVolume(value * 100),
               ),
             ],
           ),
@@ -212,12 +211,12 @@ class RadioCabinet extends StatelessWidget {
                 icon: Icons.library_music_outlined,
                 onPressed: onOpenDirectory,
               ),
-              MoveArea(
+              _MoveArea(
                 enabled: !stations.pinned,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Text(
-                    'MODEL FP-40  •  BUILD 0.2.0',
+                    'MODEL FP-40  •  BUILD 0.2.1',
                     style: TextStyle(
                       color: Color(0xffd2aa73),
                       fontSize: 11,
@@ -234,119 +233,92 @@ class RadioCabinet extends StatelessWidget {
   }
 }
 
-class CabinetHeader extends StatelessWidget {
-  const CabinetHeader({
-    super.key,
-    required this.pinned,
-    required this.onTogglePin,
-  });
-
+class _Header extends StatelessWidget {
+  const _Header({required this.pinned, required this.onTogglePin});
   final bool pinned;
   final VoidCallback onTogglePin;
 
   @override
   Widget build(BuildContext context) {
     if (!isDesktopPlatform) return const SizedBox(height: 4);
-
-    return Row(
-      children: [
-        CabinetIconButton(
-          tooltip: pinned ? 'Unlock radio position' : 'Lock radio position',
-          icon: pinned ? Icons.push_pin : Icons.push_pin_outlined,
-          active: pinned,
-          onPressed: onTogglePin,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: MoveArea(
-            enabled: !pinned,
-            child: Container(
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0x221a0c08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                pinned ? 'POSITION LOCKED' : 'DRAG RADIO TO MOVE',
-                style: const TextStyle(
-                  color: Color(0xffc49a68),
-                  fontSize: 9,
-                  letterSpacing: 1.8,
-                ),
+    return Row(children: [
+      _IconButton(
+        tooltip: pinned ? 'Unlock radio position' : 'Lock radio position',
+        icon: pinned ? Icons.push_pin : Icons.push_pin_outlined,
+        active: pinned,
+        onPressed: onTogglePin,
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _MoveArea(
+          enabled: !pinned,
+          child: Container(
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0x221a0c08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              pinned ? 'POSITION LOCKED' : 'DRAG RADIO TO MOVE',
+              style: const TextStyle(
+                color: Color(0xffc49a68),
+                fontSize: 9,
+                letterSpacing: 1.8,
               ),
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        CabinetIconButton(
-          tooltip: 'Minimize',
-          icon: Icons.remove,
-          onPressed: windowManager.minimize,
-        ),
-        const SizedBox(width: 6),
-        CabinetIconButton(
-          tooltip: 'Close',
-          icon: Icons.close,
-          onPressed: windowManager.close,
-        ),
-      ],
-    );
+      ),
+      const SizedBox(width: 8),
+      _IconButton(tooltip: 'Minimize', icon: Icons.remove, onPressed: windowManager.minimize),
+      const SizedBox(width: 6),
+      _IconButton(tooltip: 'Close', icon: Icons.close, onPressed: windowManager.close),
+    ]);
   }
 }
 
-class CabinetIconButton extends StatelessWidget {
-  const CabinetIconButton({
-    super.key,
+class _IconButton extends StatelessWidget {
+  const _IconButton({
     required this.tooltip,
     required this.icon,
     required this.onPressed,
     this.active = false,
   });
-
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
   final bool active;
 
   @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onPressed,
-          child: Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: active ? const Color(0xffc59555) : const Color(0xff2a160f),
-              border: Border.all(color: const Color(0xff160a06), width: 2),
-            ),
-            child: Icon(
-              icon,
-              size: 17,
-              color: active
-                  ? const Color(0xff2a160f)
-                  : const Color(0xffd4ad76),
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: onPressed,
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active ? const Color(0xffc59555) : const Color(0xff2a160f),
+                border: Border.all(color: const Color(0xff160a06), width: 2),
+              ),
+              child: Icon(
+                icon,
+                size: 17,
+                color: active ? const Color(0xff2a160f) : const Color(0xffd4ad76),
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
 
-class MoveArea extends StatelessWidget {
-  const MoveArea({
-    super.key,
-    required this.enabled,
-    required this.child,
-  });
-
+class _MoveArea extends StatelessWidget {
+  const _MoveArea({required this.enabled, required this.child});
   final bool enabled;
   final Widget child;
 
@@ -357,80 +329,60 @@ class MoveArea extends StatelessWidget {
   }
 }
 
-class SpeakerGrille extends StatelessWidget {
-  const SpeakerGrille({super.key});
-
+class _SpeakerGrille extends StatelessWidget {
+  const _SpeakerGrille();
   @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.15,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: const Color(0xff8f724d),
-          border: Border.all(color: const Color(0xff26130d), width: 6),
+  Widget build(BuildContext context) => AspectRatio(
+        aspectRatio: 1.15,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: const Color(0xff8f724d),
+            border: Border.all(color: const Color(0xff26130d), width: 6),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(17),
+            child: CustomPaint(painter: _GrillePainter()),
+          ),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(17),
-          child: CustomPaint(painter: GrillePainter()),
-        ),
-      ),
-    );
-  }
+      );
 }
 
-class GrillePainter extends CustomPainter {
+class _GrillePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final dark = Paint()
-      ..color = const Color(0x66402e1e)
-      ..strokeWidth = 1.2;
-    final light = Paint()
-      ..color = const Color(0x33715a3c)
-      ..strokeWidth = 1.0;
+    final dark = Paint()..color = const Color(0x66402e1e)..strokeWidth = 1.2;
+    final light = Paint()..color = const Color(0x33715a3c)..strokeWidth = 1.0;
     for (double x = -size.height; x < size.width + size.height; x += 9) {
       canvas.drawLine(Offset(x, 0), Offset(x + size.height, size.height), dark);
-      canvas.drawLine(
-        Offset(x + 4, 0),
-        Offset(x + size.height + 4, size.height),
-        light,
-      );
+      canvas.drawLine(Offset(x + 4, 0), Offset(x + size.height + 4, size.height), light);
     }
     for (double x = 0; x < size.width + size.height; x += 9) {
       canvas.drawLine(Offset(x, 0), Offset(x - size.height, size.height), dark);
     }
   }
-
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class DialPanel extends StatelessWidget {
-  const DialPanel({
-    super.key,
+class _DialPanel extends StatelessWidget {
+  const _DialPanel({
     required this.radio,
     required this.stationCount,
     required this.stationIndex,
     required this.movable,
   });
-
   final RadioPlayer radio;
   final int stationCount;
   final int stationIndex;
   final bool movable;
 
-  String get status {
-    switch (radio.connectionState) {
-      case RadioConnectionState.off:
-        return 'RECEIVER OFF';
-      case RadioConnectionState.connecting:
-        return 'TUNING ${radio.station.name}…';
-      case RadioConnectionState.playing:
-        return 'ON THE AIR';
-      case RadioConnectionState.error:
-        return 'SIGNAL LOST';
-    }
-  }
+  String get status => switch (radio.connectionState) {
+        RadioConnectionState.off => 'RECEIVER OFF',
+        RadioConnectionState.connecting => 'TUNING ${radio.station.name}…',
+        RadioConnectionState.playing => 'ON THE AIR',
+        RadioConnectionState.error => 'SIGNAL LOST',
+      };
 
   double get dialPosition {
     if (stationCount <= 1 || stationIndex < 0) return .22;
@@ -446,113 +398,91 @@ class DialPanel extends StatelessWidget {
         color: const Color(0xff2b170f),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0xff1b0d08), width: 5),
-        boxShadow: on
-            ? const [BoxShadow(color: Color(0x44ffc65b), blurRadius: 24)]
-            : null,
+        boxShadow: on ? const [BoxShadow(color: Color(0x44ffc65b), blurRadius: 24)] : null,
       ),
-      child: Column(
-        children: [
-          MoveArea(
-            enabled: movable,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 400),
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: on
-                      ? const [Color(0xffffdc89), Color(0xffbd7d35)]
-                      : const [Color(0xff66523d), Color(0xff3b3025)],
-                ),
-              ),
-              child: Column(
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      radio.station.name,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: on
-                            ? const Color(0xff3f2414)
-                            : const Color(0xff211d19),
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  FrequencyScale(on: on, position: dialPosition),
-                  const SizedBox(height: 14),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        color: on
-                            ? const Color(0xff4a2a17)
-                            : const Color(0xff25211d),
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.8,
-                      ),
-                    ),
-                  ),
-                ],
+      child: Column(children: [
+        _MoveArea(
+          enabled: movable,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: on
+                    ? const [Color(0xffffdc89), Color(0xffbd7d35)]
+                    : const [Color(0xff66523d), Color(0xff3b3025)],
               ),
             ),
-          ),
-          const SizedBox(height: 14),
-          MoveArea(
-            enabled: movable,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Text(
-                radio.connectionState == RadioConnectionState.error
-                    ? 'Unable to receive this station.'
-                    : (radio.station.subtitle.isEmpty
-                        ? 'INTERNET BROADCAST RECEIVER'
-                        : radio.station.subtitle),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xffc9a16c),
-                  fontSize: 12,
-                  letterSpacing: 1.5,
+            child: Column(children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  radio.station.name,
+                  style: TextStyle(
+                    color: on ? const Color(0xff3f2414) : const Color(0xff211d19),
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.5,
+                  ),
                 ),
               ),
+              const SizedBox(height: 20),
+              _FrequencyScale(on: on, position: dialPosition),
+              const SizedBox(height: 14),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    color: on ? const Color(0xff4a2a17) : const Color(0xff25211d),
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _MoveArea(
+          enabled: movable,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Text(
+              radio.connectionState == RadioConnectionState.error
+                  ? 'Unable to receive this station.'
+                  : (radio.station.subtitle.isEmpty
+                      ? 'INTERNET BROADCAST RECEIVER'
+                      : radio.station.subtitle),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xffc9a16c), fontSize: 12, letterSpacing: 1.5),
             ),
           ),
-          if (radio.connectionState == RadioConnectionState.error)
-            TextButton(onPressed: radio.retry, child: const Text('RETRY')),
-        ],
-      ),
+        ),
+        if (radio.connectionState == RadioConnectionState.error)
+          TextButton(onPressed: radio.retry, child: const Text('RETRY')),
+      ]),
     );
   }
 }
 
-class FrequencyScale extends StatelessWidget {
-  const FrequencyScale({
-    super.key,
-    required this.on,
-    required this.position,
-  });
-
+class _FrequencyScale extends StatelessWidget {
+  const _FrequencyScale({required this.on, required this.position});
   final bool on;
   final double position;
 
   @override
   Widget build(BuildContext context) {
-    final normalized = position.clamp(0.0, 1.0).toDouble();
-    final alignment = -1.0 + normalized * 2.0;
+    final alignment = -1 + (position.clamp(0.0, 1.0).toDouble() * 2);
     return SizedBox(
       height: 70,
       child: CustomPaint(
-        painter: ScalePainter(on: on),
+        painter: _ScalePainter(on: on),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 700),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment(on ? alignment : -.95, 0),
+          alignment: Alignment(alignment, 0),
           child: Container(
             width: 3,
             height: 64,
@@ -564,11 +494,9 @@ class FrequencyScale extends StatelessWidget {
   }
 }
 
-class ScalePainter extends CustomPainter {
-  ScalePainter({required this.on});
-
+class _ScalePainter extends CustomPainter {
+  _ScalePainter({required this.on});
   final bool on;
-
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -576,79 +504,68 @@ class ScalePainter extends CustomPainter {
       ..strokeWidth = 1.5;
     for (var i = 0; i <= 20; i++) {
       final x = size.width * i / 20;
-      final top = i % 5 == 0 ? 35.0 : 43.0;
-      canvas.drawLine(Offset(x, top), Offset(x, 60), paint);
+      canvas.drawLine(Offset(x, i % 5 == 0 ? 35 : 43), Offset(x, 60), paint);
     }
     const labels = ['55', '70', '90', '120', '160'];
     for (var i = 0; i < labels.length; i++) {
       final text = TextPainter(
         text: TextSpan(
           text: labels[i],
-          style: TextStyle(
-            color: paint.color,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: paint.color, fontSize: 12, fontWeight: FontWeight.bold),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      final desired = size.width * i / 4 - text.width / 2;
-      final x = desired.clamp(0.0, size.width - text.width).toDouble();
+      final x = (size.width * i / 4 - text.width / 2)
+          .clamp(0.0, size.width - text.width)
+          .toDouble();
       text.paint(canvas, Offset(x, 6));
     }
   }
-
   @override
-  bool shouldRepaint(covariant ScalePainter oldDelegate) => oldDelegate.on != on;
+  bool shouldRepaint(covariant _ScalePainter oldDelegate) => oldDelegate.on != on;
 }
 
-class PresetBank extends StatelessWidget {
-  const PresetBank({
-    super.key,
+class _PresetBank extends StatelessWidget {
+  const _PresetBank({
     required this.store,
     required this.currentStation,
     required this.enabled,
     required this.onSelectStation,
   });
-
   final StationStore store;
   final RadioStation currentStation;
   final bool enabled;
   final Future<void> Function(RadioStation station) onSelectStation;
 
-  Future<void> _activate(int index) async {
-    final station = store.stationById(store.presets[index]);
-    if (station == null) {
+  Future<void> _tap(int index) async {
+    final assigned = store.stationById(store.presets[index]);
+    if (assigned != null) {
+      await onSelectStation(assigned);
+    } else {
       await store.assignPreset(index, currentStation);
-      return;
     }
-    await onSelectStation(station);
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(6, (index) {
-            final station = store.stationById(store.presets[index]);
-            final active = enabled && station?.id == currentStation.id;
-            return Tooltip(
-              message: station == null
-                  ? 'Preset ${index + 1}: empty — click to set'
-                  : 'Preset ${index + 1}: ${station.name}\nClick to tune • hold to replace',
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _activate(index),
-                  onLongPress: () => store.assignPreset(index, currentStation),
-                  onSecondaryTap: () => store.clearPreset(index),
-                  borderRadius: BorderRadius.circular(4),
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(6, (index) {
+              final assigned = store.stationById(store.presets[index]);
+              final active = enabled && assigned?.id == currentStation.id;
+              return GestureDetector(
+                onTap: () => _tap(index),
+                onLongPress: () => store.assignPreset(index, currentStation),
+                onSecondaryTap: () => store.clearPreset(index),
+                child: Tooltip(
+                  message: assigned == null
+                      ? 'Preset ${index + 1}: empty — click to store current station'
+                      : 'Preset ${index + 1}: ${assigned.name}',
                   child: Container(
-                    width: 36,
-                    height: 48,
+                    width: 34,
+                    height: 46,
                     margin: const EdgeInsets.symmetric(horizontal: 3),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
@@ -658,138 +575,88 @@ class PresetBank extends StatelessWidget {
                             ? const [Color(0xffffe4a3), Color(0xffb78345)]
                             : const [Color(0xffdac598), Color(0xff8d704a)],
                       ),
-                      border: Border.all(
-                        color: const Color(0xff26140e),
-                        width: 2,
-                      ),
+                      border: Border.all(color: const Color(0xff26140e), width: 2),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${index + 1}',
-                          style: const TextStyle(
-                            color: Color(0xff2b1a11),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          station == null ? '—' : '•',
-                          style: const TextStyle(
-                            color: Color(0xff4a2d1d),
-                            fontSize: 9,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(color: Color(0xff2b1a11), fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
-              ),
-            );
-          }),
-        ),
-        const SizedBox(height: 7),
-        const Text(
-          'PRESETS  •  TAP TUNE  •  HOLD SET',
-          style: TextStyle(
-            color: Color(0xffd0aa76),
-            fontSize: 9,
-            letterSpacing: 1.1,
+              );
+            }),
           ),
-        ),
-      ],
-    );
-  }
+          const SizedBox(height: 7),
+          const Text(
+            'STATION PRESETS',
+            style: TextStyle(color: Color(0xffd0aa76), fontSize: 10, letterSpacing: 1.3),
+          ),
+        ],
+      );
 }
 
-class RadioKnob extends StatefulWidget {
-  const RadioKnob({
-    super.key,
-    required this.label,
-    required this.value,
-    this.onChanged,
-    this.onTap,
-  });
-
+class _RadioKnob extends StatefulWidget {
+  const _RadioKnob({required this.label, required this.value, this.onChanged, this.onTap});
   final String label;
   final double value;
   final ValueChanged<double>? onChanged;
   final VoidCallback? onTap;
-
   @override
-  State<RadioKnob> createState() => _RadioKnobState();
+  State<_RadioKnob> createState() => _RadioKnobState();
 }
 
-class _RadioKnobState extends State<RadioKnob> {
+class _RadioKnobState extends State<_RadioKnob> {
   double startValue = 0;
   double startY = 0;
-
-  void _dragStart(DragStartDetails details) {
-    startValue = widget.value;
-    startY = details.localPosition.dy;
-  }
-
-  void _dragUpdate(DragUpdateDetails details) {
-    if (widget.onChanged == null) return;
-    final delta = (startY - details.localPosition.dy) / 130;
-    final next = (startValue + delta).clamp(0.0, 1.0).toDouble();
-    widget.onChanged!(next);
-  }
-
   @override
   Widget build(BuildContext context) {
     final angle = -math.pi * .72 + widget.value * math.pi * 1.44;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: widget.onTap,
-          onVerticalDragStart: widget.onChanged == null ? null : _dragStart,
-          onVerticalDragUpdate: widget.onChanged == null ? null : _dragUpdate,
-          child: Container(
-            width: 82,
-            height: 82,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                colors: [Color(0xff68462f), Color(0xff1e100b)],
-              ),
-              border: Border.all(color: const Color(0xff120907), width: 5),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black45,
-                  blurRadius: 8,
-                  offset: Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Transform.rotate(
-              angle: angle,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  width: 4,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: const Color(0xffd6b77c),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      GestureDetector(
+        onTap: widget.onTap,
+        onVerticalDragStart: widget.onChanged == null
+            ? null
+            : (details) {
+                startValue = widget.value;
+                startY = details.localPosition.dy;
+              },
+        onVerticalDragUpdate: widget.onChanged == null
+            ? null
+            : (details) {
+                final delta = (startY - details.localPosition.dy) / 130;
+                widget.onChanged!((startValue + delta).clamp(0.0, 1.0).toDouble());
+              },
+        child: Container(
+          width: 82,
+          height: 82,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(colors: [Color(0xff68462f), Color(0xff1e100b)]),
+            border: Border.all(color: const Color(0xff120907), width: 5),
+            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 5))],
+          ),
+          child: Transform.rotate(
+            angle: angle,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xffd6b77c),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          widget.label,
-          style: const TextStyle(
-            color: Color(0xffd0aa76),
-            fontSize: 10,
-            letterSpacing: 1.1,
-          ),
-        ),
-      ],
-    );
+      ),
+      const SizedBox(height: 8),
+      Text(
+        widget.label,
+        style: const TextStyle(color: Color(0xffd0aa76), fontSize: 10, letterSpacing: 1.1),
+      ),
+    ]);
   }
 }
