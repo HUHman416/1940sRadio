@@ -21,7 +21,7 @@ Future<void> main() async {
       titleBarStyle: TitleBarStyle.hidden,
       windowButtonVisibility: false,
     );
-    await windowManager.waitUntilReadyToShow(options, () async {
+    windowManager.waitUntilReadyToShow(options, () async {
       await windowManager.setAsFrameless();
       await windowManager.setBackgroundColor(Colors.transparent);
       await windowManager.setHasShadow(false);
