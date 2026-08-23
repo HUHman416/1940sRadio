@@ -1,0 +1,79 @@
+name: Linux AppImage
+
+on:
+  push:
+    branches:
+      - build-0.1
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-appimage:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            curl \
+            libgtk-3-dev \
+            librsvg2-bin \
+            liblzma-dev \
+            ninja-build \
+            patchelf \
+            pkg-config
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Linux desktop runner
+        run: flutter create . --platforms=linux --org com.huhman416 --project-name radio1940s
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze source
+        run: flutter analyze
+
+      - name: Build Linux release
+        run: flutter build linux --release
+
+      - name: Package AppImage
+        run: bash scripts/package_appimage.sh 0.1.0
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1940sRadio-0.1.0-Linux-x86_64
+          path: build/appimage/out/*.AppImage
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          name: Build 0.1
+          body: |
+            First playable build of 1940sRadio.
+
+            - Fog Point Radio is preconfigured as the featured station.
+            - 1940s-inspired tabletop radio UI.
+            - Power, volume, stream connection state, and retry handling.
+            - Linux x86_64 AppImage package.
+
+            Fog Point stream: https://streaming.live365.com/a25002
+          files: build/appimage/out/*.AppImage
+          fail_on_unmatched_files: true
