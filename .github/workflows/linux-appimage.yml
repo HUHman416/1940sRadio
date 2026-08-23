@@ -3,7 +3,10 @@ name: Linux AppImage
 on:
   push:
     branches:
-      - build-0.1
+      - build-0.2
+      - main
+  pull_request:
+    branches:
       - main
   workflow_dispatch:
 
@@ -56,29 +59,32 @@ jobs:
         run: flutter build linux --release
 
       - name: Package AppImage
-        run: bash scripts/package_appimage.sh 0.1.0
+        run: bash scripts/package_appimage.sh 0.2.0
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 1940sRadio-0.1.0-Linux-x86_64
+          name: 1940sRadio-0.2.0-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
 
       - name: Publish GitHub Release
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          name: Build 0.1
+          tag_name: v0.2.0
+          name: Build 0.2
           body: |
-            First playable build of 1940sRadio.
+            Build 0.2 expands 1940sRadio into a general internet-radio receiver while keeping Fog Point Radio at its heart.
 
-            - Fog Point Radio is preconfigured as the featured station.
-            - 1940s-inspired tabletop radio UI.
-            - Power, volume, stream connection state, and retry handling.
+            - Frameless transparent desktop window: visually, the app is just the radio cabinet.
+            - Pin/position-lock control and draggable non-control surfaces.
+            - In-radio minimize and close controls.
+            - Six persistent, user-assignable station presets.
+            - Persistent station directory with custom direct stream URLs.
+            - Add, edit, remove, and tune saved stations.
+            - Current station name/subtitle and tuning needle update on the dial.
+            - Fog Point Radio remains the built-in featured/default station.
             - Linux x86_64 AppImage package.
-
-            Fog Point stream: https://streaming.live365.com/a25002
           files: build/appimage/out/*.AppImage
           fail_on_unmatched_files: true
