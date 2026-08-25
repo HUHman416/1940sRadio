@@ -65,6 +65,32 @@ APPIMAGE_EXTRACT_AND_RUN=1 "$TOOLS_DIR/linuxdeploy" \
   --desktop-file "$APPDIR/usr/share/applications/radio1940s.desktop" \
   --icon-file "$APPDIR/usr/share/icons/hicolor/512x512/apps/radio1940s.png"
 
+# Do not bundle the Ubuntu build runner's GLib/GStreamer core runtime.
+# On newer Fedora/Nobara systems a host GStreamer may otherwise be loaded
+# against these older bundled GLib libraries, producing fatal missing-symbol
+# errors such as `g_sort_array`. These libraries form one tightly-coupled
+# platform stack and must come from the host together.
+for pattern in \
+  'libglib-2.0.so*' \
+  'libgio-2.0.so*' \
+  'libgobject-2.0.so*' \
+  'libgmodule-2.0.so*' \
+  'libgthread-2.0.so*' \
+  'libgstreamer-1.0.so*'; do
+  find "$APPDIR/usr/lib" "$APPDIR/usr/bin/lib" \
+    -maxdepth 1 \( -type f -o -type l \) -name "$pattern" -delete 2>/dev/null || true
+done
+
+# Guard against accidentally reintroducing a mixed GLib/GStreamer runtime.
+if find "$APPDIR/usr/lib" "$APPDIR/usr/bin/lib" \
+    -maxdepth 1 \( -type f -o -type l \) \
+    \( -name 'libglib-2.0.so*' -o -name 'libgio-2.0.so*' -o -name 'libgobject-2.0.so*' \
+       -o -name 'libgmodule-2.0.so*' -o -name 'libgthread-2.0.so*' -o -name 'libgstreamer-1.0.so*' \) \
+    -print -quit 2>/dev/null | grep -q .; then
+  echo "Refusing to package: GLib/GStreamer core libraries remain in AppDir" >&2
+  exit 1
+fi
+
 OUTPUT="$OUT_DIR/1940sRadio-${VERSION}-x86_64.AppImage"
 ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$TOOLS_DIR/appimagetool" "$APPDIR" "$OUTPUT"
 chmod +x "$OUTPUT"
