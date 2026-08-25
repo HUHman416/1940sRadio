@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'audio/system_media.dart';
 import 'platform/desktop_window.dart';
-import 'ui/radio_screen_v3.dart';
+import 'ui/radio_screen_v4.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,9 +15,15 @@ Future<void> main() async {
 
   if (isDesktopPlatform) {
     await windowManager.ensureInitialized();
+    await acrylic.Window.initialize();
+    await acrylic.Window.setEffect(
+      effect: acrylic.WindowEffect.transparent,
+      color: Colors.transparent,
+    );
+
     const options = WindowOptions(
-      size: Size(1040, 610),
-      minimumSize: Size(560, 360),
+      size: Size(1140, 700),
+      minimumSize: Size(600, 390),
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
@@ -48,8 +55,11 @@ class Radio1940sApp extends StatelessWidget {
       theme: ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: Colors.transparent,
         canvasColor: Colors.transparent,
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Color(0xff2a160f),
+        ),
       ),
-      home: const RadioScreenV3(),
+      home: const RadioScreenV4(),
     );
   }
 }
