@@ -3,7 +3,7 @@ name: Linux AppImage
 on:
   push:
     branches:
-      - hotfix-0.4.2
+      - hotfix-0.4.3
       - main
   pull_request:
     branches:
@@ -58,14 +58,14 @@ jobs:
       - run: flutter build linux --release
 
       - name: Package AppImage
-        run: bash scripts/package_appimage.sh 0.4.2
+        run: bash scripts/package_appimage.sh 0.4.3
 
       - name: Verify AppImage excludes mixed GLib/GStreamer core
         run: |
           rm -rf build/appimage/verify
           mkdir -p build/appimage/verify
           cd build/appimage/verify
-          "../out/1940sRadio-0.4.2-x86_64.AppImage" --appimage-extract >/dev/null
+          "../out/1940sRadio-0.4.3-x86_64.AppImage" --appimage-extract >/dev/null
           if find squashfs-root/usr/lib squashfs-root/usr/bin/lib \
               -maxdepth 1 \( -type f -o -type l \) \
               \( -name 'libglib-2.0.so*' -o -name 'libgio-2.0.so*' -o -name 'libgobject-2.0.so*' \
@@ -77,7 +77,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 1940sRadio-0.4.2-Linux-x86_64
+          name: 1940sRadio-0.4.3-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
 
@@ -85,14 +85,14 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.2
-          name: Build 0.4.2
+          tag_name: v0.4.3
+          name: Build 0.4.3
           body: |
-            Linux AppImage compatibility hotfix for Build 0.4.
+            Linux startup compatibility hotfix for Build 0.4.
 
-            - Stops bundling the Ubuntu build runner's GLib/GStreamer core libraries into the AppImage.
-            - Prevents mixed-runtime crashes on newer Fedora/Nobara systems such as `undefined symbol: g_sort_array`.
-            - Adds a packaging guard and CI extraction check so the incompatible core libraries cannot silently return.
-            - Retains the v0.4.1 Linux startup visibility fixes and the full Build 0.4 receiver UI/features.
+            - Prevents an unsupported `window_manager.setHasShadow` call from aborting Linux startup before Flutter can paint the receiver UI.
+            - Treats window-shadow control as cosmetic/best-effort on platforms where the plugin does not implement it.
+            - Retains the v0.4.2 AppImage GLib/GStreamer compatibility fix and artifact verification.
+            - Retains the v0.4.1 visibility/transparency startup fixes and the full Build 0.4 receiver UI/features.
           files: build/appimage/out/*.AppImage
           fail_on_unmatched_files: true
