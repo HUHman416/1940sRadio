@@ -14,4 +14,22 @@ fi
 sed -i '/gtk_widget_show(GTK_WIDGET(window));/d' "$RUNNER"
 sed -i '/gtk_widget_show(GTK_WIDGET(view));/d' "$RUNNER"
 
-echo "Configured Linux runner for transparent flutter_acrylic window."
+# Give the native GTK toplevel an alpha-capable visual. Without an RGBA visual,
+# Flutter can paint transparent pixels but compositors such as KWin may render
+# those pixels as opaque black instead of showing the desktop behind the radio.
+python3 - <<'PY'
+from pathlib import Path
+
+path = Path("linux/runner/my_application.cc")
+text = path.read_text()
+needle = "gtk_window_set_default_size(window, 1280, 720);"
+insert = '''gtk_window_set_default_size(window, 1280, 720);\n\n  GdkScreen* screen = gtk_widget_get_screen(GTK_WIDGET(window));\n  GdkVisual* rgba_visual = gdk_screen_get_rgba_visual(screen);\n  if (rgba_visual != nullptr) {\n    gtk_widget_set_visual(GTK_WIDGET(window), rgba_visual);\n  }\n  gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);'''
+
+if needle not in text:
+    raise SystemExit(f"Could not find GTK window setup anchor: {needle}")
+
+text = text.replace(needle, insert, 1)
+path.write_text(text)
+PY
+
+echo "Configured Linux runner for RGBA transparent flutter_acrylic window."
