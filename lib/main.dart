@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart' as acrylic;
 import 'package:media_kit/media_kit.dart';
@@ -16,10 +18,6 @@ Future<void> main() async {
   if (isDesktopPlatform) {
     await windowManager.ensureInitialized();
     await acrylic.Window.initialize();
-    await acrylic.Window.setEffect(
-      effect: acrylic.WindowEffect.transparent,
-      color: Colors.transparent,
-    );
 
     const options = WindowOptions(
       size: Size(1140, 700),
@@ -31,16 +29,65 @@ Future<void> main() async {
       titleBarStyle: TitleBarStyle.hidden,
       windowButtonVisibility: false,
     );
-    windowManager.waitUntilReadyToShow(options, () async {
-      await windowManager.setAsFrameless();
-      await windowManager.setBackgroundColor(Colors.transparent);
-      await windowManager.setHasShadow(false);
-      await windowManager.show();
-      await windowManager.focus();
-    });
+
+    await windowManager.setSize(options.size!);
+    await windowManager.setMinimumSize(options.minimumSize!);
+    await windowManager.center();
+    await windowManager.setTitle(options.title!);
+    await windowManager.setTitleBarStyle(
+      options.titleBarStyle!,
+      windowButtonVisibility: options.windowButtonVisibility ?? false,
+    );
+    await windowManager.setAsFrameless();
+    await windowManager.setHasShadow(false);
   }
 
   runApp(const Radio1940sApp());
+
+  if (isDesktopPlatform) {
+    unawaited(_finishDesktopStartup());
+  }
+}
+
+Future<void> _finishDesktopStartup() async {
+  // Give Flutter a chance to attach and paint its first scene before applying
+  // the Linux GTK transparency effect. flutter_acrylic itself temporarily
+  // hides/shows the native window while SetEffect runs, so combining it with
+  // waitUntilReadyToShow can leave a healthy process with no visible window.
+  await Future<void>.delayed(const Duration(milliseconds: 120));
+
+  try {
+    await acrylic.Window.setEffect(
+      effect: acrylic.WindowEffect.transparent,
+      color: Colors.transparent,
+    );
+  } catch (error, stackTrace) {
+    debugPrint('Transparent window effect unavailable: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
+  try {
+    await windowManager.setBackgroundColor(Colors.transparent);
+    await windowManager.show();
+    await windowManager.focus();
+  } catch (error, stackTrace) {
+    debugPrint('Desktop window show warning: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
+  // Failsafe for Linux/Wayland compositors: if a plugin races window
+  // visibility, explicitly request visibility again after startup settles.
+  await Future<void>.delayed(const Duration(milliseconds: 500));
+  try {
+    final visible = await windowManager.isVisible();
+    if (visible != true) {
+      await windowManager.show();
+      await windowManager.focus();
+    }
+  } catch (error, stackTrace) {
+    debugPrint('Desktop visibility failsafe warning: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
 }
 
 class Radio1940sApp extends StatelessWidget {

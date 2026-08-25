@@ -3,7 +3,7 @@ name: Linux AppImage
 on:
   push:
     branches:
-      - build-0.4
+      - hotfix-0.4.1
       - main
   pull_request:
     branches:
@@ -58,11 +58,11 @@ jobs:
       - run: flutter build linux --release
 
       - name: Package AppImage
-        run: bash scripts/package_appimage.sh 0.4.0
+        run: bash scripts/package_appimage.sh 0.4.1
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 1940sRadio-0.4.0-Linux-x86_64
+          name: 1940sRadio-0.4.1-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
 
@@ -70,20 +70,15 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.0
-          name: Build 0.4
+          tag_name: v0.4.1
+          name: Build 0.4.1
           body: |
-            Build 0.4 is the Atmosphere + Receiver Console overhaul.
+            Linux startup hotfix for Build 0.4.
 
-            - True transparent desktop window setup instead of a wood-colored full-window workaround.
-            - Complete receiver UI overhaul: information/control bay on the left, illuminated tuner on the right, saved channels along the bottom.
-            - Fogpoint Standard Time clock and local-time readout.
-            - Horizontal vintage volume slider.
-            - Animated signal/tuning eye.
-            - Tube warm-up behavior and procedural tuning-static burst.
-            - Dial lamp control and richer dial illumination.
-            - Sleep timer and wake-to-radio alarm while the app/background service is alive.
-            - Recent transmission/listening history.
-            - Fog Point-specific receiver flavor while retaining arbitrary custom internet stations.
+            - Removes the competing hidden-window startup race between window_manager and flutter_acrylic.
+            - Lets Flutter attach and paint before applying native transparency.
+            - Explicitly shows and focuses the radio after the transparency effect is applied.
+            - Adds a delayed visibility failsafe for Linux/Wayland compositors.
+            - Retains the Build 0.4 receiver UI, atmosphere, station, timer, and history features.
           files: build/appimage/out/*.AppImage
           fail_on_unmatched_files: true
