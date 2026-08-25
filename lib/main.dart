@@ -36,7 +36,7 @@ Future<void> main() async {
     await windowManager.setTitle(options.title!);
     await windowManager.setTitleBarStyle(
       options.titleBarStyle!,
-      windowButtonVisibility: options.windowButtonVisibility,
+      windowButtonVisibility: options.windowButtonVisibility ?? false,
     );
     await windowManager.setAsFrameless();
     await windowManager.setHasShadow(false);
