@@ -3,7 +3,7 @@ name: Linux AppImage
 on:
   push:
     branches:
-      - build-0.3
+      - build-0.4
       - main
   pull_request:
     branches:
@@ -28,6 +28,9 @@ jobs:
             clang \
             cmake \
             curl \
+            gstreamer1.0-plugins-good \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
             libgtk-3-dev \
             libmpv-dev \
             librsvg2-bin \
@@ -48,17 +51,18 @@ jobs:
           flutter config --enable-linux-desktop
           flutter create . --platforms=linux --org com.huhman416 --project-name radio1940s
           rm -rf test
+          bash scripts/configure_linux_transparency.sh
 
       - run: flutter pub get
       - run: flutter analyze lib
       - run: flutter build linux --release
 
       - name: Package AppImage
-        run: bash scripts/package_appimage.sh 0.3.0
+        run: bash scripts/package_appimage.sh 0.4.0
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 1940sRadio-0.3.0-Linux-x86_64
+          name: 1940sRadio-0.4.0-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
 
@@ -66,17 +70,20 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.3.0
-          name: Build 0.3
+          tag_name: v0.4.0
+          name: Build 0.4
           body: |
-            Build 0.3 adds the mobile receiver foundation and improves the desktop experience.
+            Build 0.4 is the Atmosphere + Receiver Console overhaul.
 
-            - No-scroll responsive cabinet that scales to the available window.
-            - Portrait and landscape radio layouts.
-            - Cabinet-colored full window surface to eliminate the Linux black field around the radio.
-            - Best-effort ICY/Live365 Now Playing metadata.
-            - Android background playback integration with notification, lock-screen, Bluetooth, and headset media controls.
-            - iPhone/iPad background-audio and lock-screen media-control integration.
-            - Android APK and unsigned iOS build validation in CI.
+            - True transparent desktop window setup instead of a wood-colored full-window workaround.
+            - Complete receiver UI overhaul: information/control bay on the left, illuminated tuner on the right, saved channels along the bottom.
+            - Fogpoint Standard Time clock and local-time readout.
+            - Horizontal vintage volume slider.
+            - Animated signal/tuning eye.
+            - Tube warm-up behavior and procedural tuning-static burst.
+            - Dial lamp control and richer dial illumination.
+            - Sleep timer and wake-to-radio alarm while the app/background service is alive.
+            - Recent transmission/listening history.
+            - Fog Point-specific receiver flavor while retaining arbitrary custom internet stations.
           files: build/appimage/out/*.AppImage
           fail_on_unmatched_files: true
