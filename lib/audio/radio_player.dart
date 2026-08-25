@@ -5,12 +5,14 @@ import 'package:media_kit/media_kit.dart';
 
 import '../stations/radio_station.dart';
 import 'icy_metadata.dart';
+import 'radio_atmosphere.dart';
 import 'system_media.dart';
 
 enum RadioConnectionState { off, connecting, playing, error }
 
 class RadioPlayer extends ChangeNotifier {
   final Player _player = Player();
+  final RadioAtmosphere _atmosphere = RadioAtmosphere();
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<String>? _errorSubscription;
   Timer? _metadataTimer;
@@ -20,6 +22,7 @@ class RadioPlayer extends ChangeNotifier {
   String? _errorMessage;
   String? _nowPlaying;
   bool _poweredOn = false;
+  bool _warmingUp = false;
   RadioStation _station = RadioStation.fogPoint;
 
   RadioConnectionState get connectionState => _connectionState;
@@ -27,13 +30,14 @@ class RadioPlayer extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get nowPlaying => _nowPlaying;
   bool get poweredOn => _poweredOn;
+  bool get warmingUp => _warmingUp;
   RadioStation get station => _station;
 
   Future<void> initialize({RadioStation? initialStation}) async {
     if (initialStation != null) _station = initialStation;
 
     _playingSubscription = _player.stream.playing.listen((playing) {
-      if (!_poweredOn) return;
+      if (!_poweredOn || _warmingUp) return;
       _connectionState = playing
           ? RadioConnectionState.playing
           : RadioConnectionState.connecting;
@@ -43,6 +47,7 @@ class RadioPlayer extends ChangeNotifier {
 
     _errorSubscription = _player.stream.error.listen((message) {
       _errorMessage = message;
+      _warmingUp = false;
       _connectionState = RadioConnectionState.error;
       _publishSystemState();
       notifyListeners();
@@ -61,6 +66,15 @@ class RadioPlayer extends ChangeNotifier {
   Future<void> powerOn() async {
     if (_poweredOn) return;
     _poweredOn = true;
+    _warmingUp = true;
+    _errorMessage = null;
+    _connectionState = RadioConnectionState.connecting;
+    _publishSystemState();
+    notifyListeners();
+    unawaited(_atmosphere.playTuningBurst());
+    await Future<void>.delayed(const Duration(milliseconds: 750));
+    if (!_poweredOn) return;
+    _warmingUp = false;
     await _openCurrentStation();
     _startMetadataPolling();
   }
@@ -68,6 +82,7 @@ class RadioPlayer extends ChangeNotifier {
   Future<void> powerOff() async {
     if (!_poweredOn) return;
     _poweredOn = false;
+    _warmingUp = false;
     _metadataTimer?.cancel();
     await _player.stop();
     _connectionState = RadioConnectionState.off;
@@ -91,6 +106,7 @@ class RadioPlayer extends ChangeNotifier {
     _publishSystemState();
     notifyListeners();
     if (_poweredOn) {
+      unawaited(_atmosphere.playTuningBurst());
       await _openCurrentStation();
       await _refreshMetadata();
     }
@@ -156,6 +172,7 @@ class RadioPlayer extends ChangeNotifier {
     _playingSubscription?.cancel();
     _errorSubscription?.cancel();
     _player.dispose();
+    unawaited(_atmosphere.dispose());
     super.dispose();
   }
 }
