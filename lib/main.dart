@@ -39,7 +39,15 @@ Future<void> main() async {
       windowButtonVisibility: options.windowButtonVisibility ?? false,
     );
     await windowManager.setAsFrameless();
-    await windowManager.setHasShadow(false);
+
+    // setHasShadow is not implemented by window_manager on every desktop
+    // platform (notably Linux). Window shadow preference is cosmetic and must
+    // never abort startup before Flutter paints its first frame.
+    try {
+      await windowManager.setHasShadow(false);
+    } catch (error) {
+      debugPrint('Window shadow control unavailable: $error');
+    }
   }
 
   runApp(const Radio1940sApp());
