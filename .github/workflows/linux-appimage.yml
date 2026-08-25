@@ -3,7 +3,7 @@ name: Linux AppImage
 on:
   push:
     branches:
-      - hotfix-0.4.1
+      - hotfix-0.4.2
       - main
   pull_request:
     branches:
@@ -58,11 +58,26 @@ jobs:
       - run: flutter build linux --release
 
       - name: Package AppImage
-        run: bash scripts/package_appimage.sh 0.4.1
+        run: bash scripts/package_appimage.sh 0.4.2
+
+      - name: Verify AppImage excludes mixed GLib/GStreamer core
+        run: |
+          rm -rf build/appimage/verify
+          mkdir -p build/appimage/verify
+          cd build/appimage/verify
+          "../out/1940sRadio-0.4.2-x86_64.AppImage" --appimage-extract >/dev/null
+          if find squashfs-root/usr/lib squashfs-root/usr/bin/lib \
+              -maxdepth 1 \( -type f -o -type l \) \
+              \( -name 'libglib-2.0.so*' -o -name 'libgio-2.0.so*' -o -name 'libgobject-2.0.so*' \
+                 -o -name 'libgmodule-2.0.so*' -o -name 'libgthread-2.0.so*' -o -name 'libgstreamer-1.0.so*' \) \
+              -print -quit 2>/dev/null | grep -q .; then
+            echo "Bundled GLib/GStreamer core library unexpectedly present" >&2
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 1940sRadio-0.4.1-Linux-x86_64
+          name: 1940sRadio-0.4.2-Linux-x86_64
           path: build/appimage/out/*.AppImage
           if-no-files-found: error
 
@@ -70,15 +85,14 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.1
-          name: Build 0.4.1
+          tag_name: v0.4.2
+          name: Build 0.4.2
           body: |
-            Linux startup hotfix for Build 0.4.
+            Linux AppImage compatibility hotfix for Build 0.4.
 
-            - Removes the competing hidden-window startup race between window_manager and flutter_acrylic.
-            - Lets Flutter attach and paint before applying native transparency.
-            - Explicitly shows and focuses the radio after the transparency effect is applied.
-            - Adds a delayed visibility failsafe for Linux/Wayland compositors.
-            - Retains the Build 0.4 receiver UI, atmosphere, station, timer, and history features.
+            - Stops bundling the Ubuntu build runner's GLib/GStreamer core libraries into the AppImage.
+            - Prevents mixed-runtime crashes on newer Fedora/Nobara systems such as `undefined symbol: g_sort_array`.
+            - Adds a packaging guard and CI extraction check so the incompatible core libraries cannot silently return.
+            - Retains the v0.4.1 Linux startup visibility fixes and the full Build 0.4 receiver UI/features.
           files: build/appimage/out/*.AppImage
           fail_on_unmatched_files: true
