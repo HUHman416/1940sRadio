@@ -79,7 +79,8 @@ Future<void> _finishDesktopStartup() async {
   // visibility, explicitly request visibility again after startup settles.
   await Future<void>.delayed(const Duration(milliseconds: 500));
   try {
-    if (!await windowManager.isVisible()) {
+    final visible = await windowManager.isVisible();
+    if (visible != true) {
       await windowManager.show();
       await windowManager.focus();
     }
