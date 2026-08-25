@@ -39,15 +39,6 @@ Future<void> main() async {
       windowButtonVisibility: options.windowButtonVisibility ?? false,
     );
     await windowManager.setAsFrameless();
-
-    // setHasShadow is not implemented by window_manager on every desktop
-    // platform (notably Linux). Window shadow preference is cosmetic and must
-    // never abort startup before Flutter paints its first frame.
-    try {
-      await windowManager.setHasShadow(false);
-    } catch (error) {
-      debugPrint('Window shadow control unavailable: $error');
-    }
   }
 
   runApp(const Radio1940sApp());
@@ -59,9 +50,10 @@ Future<void> main() async {
 
 Future<void> _finishDesktopStartup() async {
   // Give Flutter a chance to attach and paint its first scene before applying
-  // the Linux GTK transparency effect. flutter_acrylic itself temporarily
-  // hides/shows the native window while SetEffect runs, so combining it with
-  // waitUntilReadyToShow can leave a healthy process with no visible window.
+  // the native transparency effect. On Linux the generated GTK runner is also
+  // configured with an RGBA visual so Flutter's transparent pixels can be
+  // composited by the desktop instead of falling back to an opaque black
+  // surface.
   await Future<void>.delayed(const Duration(milliseconds: 120));
 
   try {
