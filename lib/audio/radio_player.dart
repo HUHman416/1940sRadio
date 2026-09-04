@@ -21,6 +21,7 @@ class RadioPlayer extends ChangeNotifier {
   final RadioAtmosphere _atmosphere = RadioAtmosphere();
   StreamSubscription<bool>? _playingSubscription;
   StreamSubscription<String>? _errorSubscription;
+  StreamSubscription<Track>? _trackSubscription;
   Timer? _metadataTimer;
   Timer? _reconnectTimer;
 
@@ -47,24 +48,48 @@ class RadioPlayer extends ChangeNotifier {
   AtmosphereMode get atmosphereMode => _atmosphereMode;
 
   Future<void> initialize({RadioStation? initialStation}) async {
-    if (initialStation != null) _station = initialStation;
+    if (initialStation != null) {
+      _station = initialStation;
+    }
     final prefs = await SharedPreferences.getInstance();
     _volume = (prefs.getDouble(_volumeKey) ?? 72).clamp(0, 100).toDouble();
-    final atmosphereIndex = prefs.getInt(_atmosphereKey) ?? AtmosphereMode.subtle.index;
-    if (atmosphereIndex >= 0 && atmosphereIndex < AtmosphereMode.values.length) {
+    final atmosphereIndex =
+        prefs.getInt(_atmosphereKey) ?? AtmosphereMode.subtle.index;
+    if (atmosphereIndex >= 0 &&
+        atmosphereIndex < AtmosphereMode.values.length) {
       _atmosphereMode = AtmosphereMode.values[atmosphereIndex];
     }
 
     _playingSubscription = _player.stream.playing.listen((playing) {
-      if (!_poweredOn || _warmingUp || _shuttingDown) return;
-      _connectionState = playing ? RadioConnectionState.playing : RadioConnectionState.connecting;
-      if (playing) _reconnectAttempt = 0;
+      if (!_poweredOn || _warmingUp || _shuttingDown) {
+        return;
+      }
+      _connectionState = playing
+          ? RadioConnectionState.playing
+          : RadioConnectionState.connecting;
+      if (playing) {
+        _reconnectAttempt = 0;
+      }
       _publishSystemState();
       notifyListeners();
     });
 
+    _trackSubscription = _player.stream.track.listen((track) {
+      if (!_poweredOn || _shuttingDown) {
+        return;
+      }
+      final nativeTitle = track.audio.title?.trim();
+      if (nativeTitle != null &&
+          nativeTitle.isNotEmpty &&
+          nativeTitle.toUpperCase() != _station.name.toUpperCase()) {
+        _setNowPlaying(nativeTitle);
+      }
+    });
+
     _errorSubscription = _player.stream.error.listen((message) {
-      if (_shuttingDown) return;
+      if (_shuttingDown) {
+        return;
+      }
       _errorMessage = message;
       _warmingUp = false;
       _connectionState = RadioConnectionState.error;
@@ -79,7 +104,9 @@ class RadioPlayer extends ChangeNotifier {
   }
 
   Future<void> powerOn() async {
-    if (_poweredOn || _shuttingDown) return;
+    if (_poweredOn || _shuttingDown) {
+      return;
+    }
     _poweredOn = true;
     _warmingUp = true;
     _errorMessage = null;
@@ -89,7 +116,9 @@ class RadioPlayer extends ChangeNotifier {
     await _player.setVolume(_volume);
     await _playAtmosphereBurst();
     await Future<void>.delayed(const Duration(milliseconds: 750));
-    if (!_poweredOn || _shuttingDown) return;
+    if (!_poweredOn || _shuttingDown) {
+      return;
+    }
     _warmingUp = false;
     await _openCurrentStation();
     _startMetadataPolling();
@@ -102,7 +131,9 @@ class RadioPlayer extends ChangeNotifier {
     await prefs.setDouble(_volumeKey, _volume);
     if (!gentle) {
       await _player.setVolume(_volume);
-      if (!_poweredOn) await powerOn();
+      if (!_poweredOn) {
+        await powerOn();
+      }
       return;
     }
 
@@ -115,14 +146,18 @@ class RadioPlayer extends ChangeNotifier {
       notifyListeners();
       await _playAtmosphereBurst();
       await Future<void>.delayed(const Duration(milliseconds: 750));
-      if (_shuttingDown) return;
+      if (_shuttingDown) {
+        return;
+      }
       _warmingUp = false;
       await _openCurrentStation();
       _startMetadataPolling();
     }
 
     for (var step = 1; step <= 20; step++) {
-      if (!_poweredOn || _shuttingDown) return;
+      if (!_poweredOn || _shuttingDown) {
+        return;
+      }
       await _player.setVolume(wakeVolume * step / 20);
       await Future<void>.delayed(const Duration(milliseconds: 150));
     }
@@ -130,7 +165,9 @@ class RadioPlayer extends ChangeNotifier {
   }
 
   Future<void> powerOff() async {
-    if (!_poweredOn) return;
+    if (!_poweredOn) {
+      return;
+    }
     _poweredOn = false;
     _warmingUp = false;
     _metadataTimer?.cancel();
@@ -161,7 +198,9 @@ class RadioPlayer extends ChangeNotifier {
   Future<bool> testStream(String url) async {
     final probe = Player();
     try {
-      await probe.open(Media(url), play: false).timeout(const Duration(seconds: 8));
+      await probe
+          .open(Media(url), play: false)
+          .timeout(const Duration(seconds: 8));
       return true;
     } catch (_) {
       return false;
@@ -171,7 +210,9 @@ class RadioPlayer extends ChangeNotifier {
   }
 
   Future<void> retry() async {
-    if (!_poweredOn || _shuttingDown) return;
+    if (!_poweredOn || _shuttingDown) {
+      return;
+    }
     _reconnectTimer?.cancel();
     await _openCurrentStation();
   }
@@ -186,16 +227,24 @@ class RadioPlayer extends ChangeNotifier {
   }
 
   void applySleepFade(double factor) {
-    if (!_poweredOn || _shuttingDown) return;
+    if (!_poweredOn || _shuttingDown) {
+      return;
+    }
     final clamped = factor.clamp(0.0, 1.0).toDouble();
     if (clamped >= .999) {
       final base = _sleepFadeBaseVolume;
       _sleepFadeBaseVolume = null;
-      if (base != null) unawaited(_player.setVolume(base));
+      if (base != null) {
+        unawaited(_player.setVolume(base));
+      }
       return;
     }
     _sleepFadeBaseVolume ??= _volume;
-    unawaited(_player.setVolume((_sleepFadeBaseVolume! * clamped).clamp(0, 100).toDouble()));
+    unawaited(
+      _player.setVolume(
+        (_sleepFadeBaseVolume! * clamped).clamp(0, 100).toDouble(),
+      ),
+    );
   }
 
   Future<void> setAtmosphereMode(AtmosphereMode mode) async {
@@ -206,14 +255,18 @@ class RadioPlayer extends ChangeNotifier {
   }
 
   Future<void> _playAtmosphereBurst() async {
-    if (_atmosphereMode == AtmosphereMode.off) return;
+    if (_atmosphereMode == AtmosphereMode.off) {
+      return;
+    }
     await _atmosphere.playTuningBurst(
       gain: _atmosphereMode == AtmosphereMode.period ? .26 : .12,
     );
   }
 
   Future<void> _openCurrentStation() async {
-    if (_shuttingDown) return;
+    if (_shuttingDown) {
+      return;
+    }
     _errorMessage = null;
     _connectionState = RadioConnectionState.connecting;
     _publishSystemState();
@@ -222,7 +275,9 @@ class RadioPlayer extends ChangeNotifier {
     Object? lastError;
     for (final url in _station.playbackUrls) {
       try {
-        await _player.open(Media(url), play: true).timeout(const Duration(seconds: 12));
+        await _player
+            .open(Media(url), play: true)
+            .timeout(const Duration(seconds: 12));
         _errorMessage = null;
         await _refreshMetadata(url: url);
         return;
@@ -239,43 +294,67 @@ class RadioPlayer extends ChangeNotifier {
   }
 
   void _scheduleReconnect() {
-    if (!_poweredOn || _shuttingDown || _reconnectTimer?.isActive == true) return;
+    if (!_poweredOn ||
+        _shuttingDown ||
+        _reconnectTimer?.isActive == true) {
+      return;
+    }
     _reconnectAttempt = (_reconnectAttempt + 1).clamp(1, 6).toInt();
     final seconds = (2 << (_reconnectAttempt - 1)).clamp(2, 30).toInt();
-    _reconnectTimer = Timer(Duration(seconds: seconds), () => unawaited(_openCurrentStation()));
+    _reconnectTimer = Timer(
+      Duration(seconds: seconds),
+      () => unawaited(_openCurrentStation()),
+    );
   }
 
   void _startMetadataPolling() {
     _metadataTimer?.cancel();
-    _metadataTimer = Timer.periodic(const Duration(seconds: 20), (_) => _refreshMetadata());
+    _metadataTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _refreshMetadata(),
+    );
   }
 
   Future<void> _refreshMetadata({String? url}) async {
-    if (!_poweredOn || _shuttingDown) return;
+    if (!_poweredOn || _shuttingDown) {
+      return;
+    }
     final metadata = await IcyMetadataProbe.fetch(url ?? _station.url);
     final next = metadata?.title?.trim();
-    if (next != null && next.isNotEmpty && next != _nowPlaying) {
-      _nowPlaying = next;
-      _publishSystemState();
-      notifyListeners();
+    if (next != null && next.isNotEmpty) {
+      _setNowPlaying(next);
     }
+  }
+
+  void _setNowPlaying(String title) {
+    final clean = title.trim();
+    if (clean.isEmpty || clean == _nowPlaying) {
+      return;
+    }
+    _nowPlaying = clean;
+    _publishSystemState();
+    notifyListeners();
   }
 
   void _publishSystemState() {
     radioSystemHandler?.publish(
       station: _station,
-      playing: _poweredOn && _connectionState == RadioConnectionState.playing,
+      playing:
+          _poweredOn && _connectionState == RadioConnectionState.playing,
       nowPlaying: _nowPlaying,
     );
   }
 
   Future<void> shutdown() async {
-    if (_shuttingDown) return;
+    if (_shuttingDown) {
+      return;
+    }
     _shuttingDown = true;
     _poweredOn = false;
     _metadataTimer?.cancel();
     _reconnectTimer?.cancel();
     await _playingSubscription?.cancel();
+    await _trackSubscription?.cancel();
     await _errorSubscription?.cancel();
     try {
       await _player.stop();
