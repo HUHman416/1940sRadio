@@ -1,0 +1,12 @@
+{
+  "format": "radio1940s.builtin-stations.v1",
+  "stations": [
+    {
+      "id": "fog-point-radio",
+      "name": "FOG POINT RADIO",
+      "url": "https://s4.radio.co/s3ff272827/listen",
+      "subtitle": "DRIFT BAY BROADCASTING SERVICE",
+      "fallbackUrls": []
+    }
+  ]
+}
