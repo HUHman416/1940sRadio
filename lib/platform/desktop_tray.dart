@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -12,7 +13,6 @@ import 'desktop_window.dart';
 class DesktopTrayController with TrayListener {
   RadioPlayer? _radio;
   StationStore? _stations;
-  Future<void> Function()? _quit;
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -27,11 +27,7 @@ class DesktopTrayController with TrayListener {
     }
   }
 
-  void bind({
-    required RadioPlayer radio,
-    required StationStore stations,
-    required Future<void> Function() quit,
-  }) {
+  void bind({required RadioPlayer radio, required StationStore stations}) {
     if (_radio != radio || _stations != stations) {
       _radio?.removeListener(_rebuildMenuUnawaited);
       _stations?.removeListener(_rebuildMenuUnawaited);
@@ -40,7 +36,6 @@ class DesktopTrayController with TrayListener {
       radio.addListener(_rebuildMenuUnawaited);
       stations.addListener(_rebuildMenuUnawaited);
     }
-    _quit = quit;
     _rebuildMenuUnawaited();
   }
 
@@ -52,7 +47,7 @@ class DesktopTrayController with TrayListener {
   }
 
   void _rebuildMenuUnawaited() {
-    _rebuildMenu();
+    unawaited(_rebuildMenu());
   }
 
   Future<void> _rebuildMenu() async {
@@ -118,8 +113,16 @@ class DesktopTrayController with TrayListener {
         }
       }
     } else if (key == 'quit') {
-      _quit?.call();
+      unawaited(_quitFromTray());
     }
+  }
+
+  Future<void> _quitFromTray() async {
+    await _radio?.shutdown();
+    await dispose();
+    try {
+      await windowManager.destroy();
+    } catch (_) {}
   }
 
   Future<void> dispose() async {
