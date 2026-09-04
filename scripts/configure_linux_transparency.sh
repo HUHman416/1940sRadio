@@ -17,13 +17,22 @@ sed -i '/gtk_widget_show(GTK_WIDGET(view));/d' "$RUNNER"
 # Give the native GTK toplevel an alpha-capable visual. Without an RGBA visual,
 # Flutter can paint transparent pixels but compositors such as KWin may render
 # those pixels as opaque black instead of showing the desktop behind the radio.
+#
+# Keep this patch idempotent: CI regenerates the Linux runner today, but local
+# packaging/rebuild workflows may invoke this script more than once.
 python3 - <<'PY'
 from pathlib import Path
 
 path = Path("linux/runner/my_application.cc")
 text = path.read_text()
+marker = "// 1940s Radio RGBA transparency patch"
+
+if marker in text:
+    print("Linux RGBA transparency patch already present; skipping reinsertion.")
+    raise SystemExit(0)
+
 needle = "gtk_window_set_default_size(window, 1280, 720);"
-insert = '''gtk_window_set_default_size(window, 1280, 720);\n\n  GdkScreen* screen = gtk_widget_get_screen(GTK_WIDGET(window));\n  GdkVisual* rgba_visual = gdk_screen_get_rgba_visual(screen);\n  if (rgba_visual != nullptr) {\n    gtk_widget_set_visual(GTK_WIDGET(window), rgba_visual);\n  }\n  gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);'''
+insert = '''gtk_window_set_default_size(window, 1280, 720);\n\n  // 1940s Radio RGBA transparency patch\n  GdkScreen* radio_rgba_screen = gtk_widget_get_screen(GTK_WIDGET(window));\n  GdkVisual* radio_rgba_visual = gdk_screen_get_rgba_visual(radio_rgba_screen);\n  if (radio_rgba_visual != nullptr) {\n    gtk_widget_set_visual(GTK_WIDGET(window), radio_rgba_visual);\n  }\n  gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);'''
 
 if needle not in text:
     raise SystemExit(f"Could not find GTK window setup anchor: {needle}")
