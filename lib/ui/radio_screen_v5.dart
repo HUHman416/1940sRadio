@@ -188,7 +188,7 @@ class _RadioScreenV5State extends State<RadioScreenV5> with WindowListener {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        value: stationId,
+                        initialValue: stationId,
                         decoration: const InputDecoration(labelText: 'Wake station'),
                         items: stations.stations
                             .map((station) => DropdownMenuItem(value: station.id, child: Text(station.name)))
