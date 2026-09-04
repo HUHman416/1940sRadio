@@ -12,6 +12,7 @@ dependencies:
   audio_service: ^0.18.19
   audio_session: ^0.2.4
   audioplayers: ^6.8.1
+  file_selector: ^1.0.3
   flutter_acrylic: ^1.1.4
   media_kit: ^1.2.6
   media_kit_libs_audio: ^1.0.7
