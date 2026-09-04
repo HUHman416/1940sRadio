@@ -10,14 +10,18 @@ class StationStore extends ChangeNotifier {
   static const _presetsKey = 'presets.v1';
   static const _selectedKey = 'selected-station.v1';
   static const _pinnedKey = 'window-pinned.v1';
+  static const _favoritesKey = 'favorites.v1';
 
   final List<RadioStation> _stations = [RadioStation.fogPoint];
   List<String?> _presets = [RadioStation.fogPoint.id, null, null, null, null, null];
+  final Set<String> _favorites = {RadioStation.fogPoint.id};
   String _selectedStationId = RadioStation.fogPoint.id;
   bool _pinned = false;
   bool _loaded = false;
 
   List<RadioStation> get stations => List.unmodifiable(_stations);
+  List<RadioStation> get favorites =>
+      _stations.where((station) => _favorites.contains(station.id)).toList(growable: false);
   List<String?> get presets => List.unmodifiable(_presets);
   String get selectedStationId => _selectedStationId;
   bool get pinned => _pinned;
@@ -32,6 +36,8 @@ class StationStore extends ChangeNotifier {
     }
     return null;
   }
+
+  bool isFavorite(String stationId) => _favorites.contains(stationId);
 
   int? presetForStation(String stationId) {
     final index = _presets.indexOf(stationId);
@@ -48,9 +54,7 @@ class StationStore extends ChangeNotifier {
         if (station.id != RadioStation.fogPoint.id && station.url.trim().isNotEmpty) {
           _stations.add(station);
         }
-      } catch (_) {
-        // Ignore malformed saved stations rather than preventing startup.
-      }
+      } catch (_) {}
     }
 
     final savedPresets = prefs.getStringList(_presetsKey);
@@ -58,6 +62,14 @@ class StationStore extends ChangeNotifier {
       _presets = savedPresets.map((value) => value.isEmpty ? null : value).toList();
     }
     _presets[0] ??= RadioStation.fogPoint.id;
+
+    final savedFavorites = prefs.getStringList(_favoritesKey);
+    if (savedFavorites != null) {
+      _favorites
+        ..clear()
+        ..addAll(savedFavorites.where((id) => stationById(id) != null));
+    }
+    _favorites.add(RadioStation.fogPoint.id);
 
     final savedSelected = prefs.getString(_selectedKey);
     if (savedSelected != null && stationById(savedSelected) != null) {
@@ -113,14 +125,24 @@ class StationStore extends ChangeNotifier {
   Future<void> removeStation(RadioStation station) async {
     if (station.builtIn) return;
     _stations.removeWhere((candidate) => candidate.id == station.id);
+    _favorites.remove(station.id);
     _presets = _presets.map((id) => id == station.id ? null : id).toList();
-    if (_selectedStationId == station.id) {
-      _selectedStationId = RadioStation.fogPoint.id;
-    }
+    if (_selectedStationId == station.id) _selectedStationId = RadioStation.fogPoint.id;
     await _saveStations();
     await _savePresets();
+    await _saveFavorites();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_selectedKey, _selectedStationId);
+    notifyListeners();
+  }
+
+  Future<void> toggleFavorite(RadioStation station) async {
+    if (_favorites.contains(station.id) && station.id != RadioStation.fogPoint.id) {
+      _favorites.remove(station.id);
+    } else {
+      _favorites.add(station.id);
+    }
+    await _saveFavorites();
     notifyListeners();
   }
 
@@ -133,11 +155,7 @@ class StationStore extends ChangeNotifier {
 
   Future<void> clearPreset(int index) async {
     if (index < 0 || index >= 6) return;
-    if (index == 0) {
-      _presets[0] = RadioStation.fogPoint.id;
-    } else {
-      _presets[index] = null;
-    }
+    _presets[index] = index == 0 ? RadioStation.fogPoint.id : null;
     await _savePresets();
     notifyListeners();
   }
@@ -149,17 +167,75 @@ class StationStore extends ChangeNotifier {
     await prefs.setBool(_pinnedKey, value);
   }
 
+  String exportConfiguration() {
+    final payload = {
+      'format': 'radio1940s.receiver.v1',
+      'stations': _stations.where((station) => !station.builtIn).map((station) => station.toJson()).toList(),
+      'presets': _presets,
+      'favorites': _favorites.toList(),
+      'selectedStation': _selectedStationId,
+      'pinned': _pinned,
+    };
+    return const JsonEncoder.withIndent('  ').convert(payload);
+  }
+
+  Future<void> importConfiguration(String raw) async {
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    if (decoded['format'] != 'radio1940s.receiver.v1') {
+      throw const FormatException('Unsupported receiver configuration.');
+    }
+    final imported = <RadioStation>[];
+    for (final item in (decoded['stations'] as List<dynamic>? ?? const [])) {
+      if (item is Map<String, dynamic>) imported.add(RadioStation.fromJson(item));
+      if (item is Map) imported.add(RadioStation.fromJson(Map<String, dynamic>.from(item)));
+    }
+    _stations
+      ..removeWhere((station) => !station.builtIn)
+      ..addAll(imported.where((station) => station.id != RadioStation.fogPoint.id));
+
+    final rawPresets = decoded['presets'] as List<dynamic>?;
+    if (rawPresets != null && rawPresets.length == 6) {
+      _presets = rawPresets.map((value) {
+        final id = value as String?;
+        return stationById(id) == null ? null : id;
+      }).toList();
+    }
+    _presets[0] ??= RadioStation.fogPoint.id;
+
+    _favorites
+      ..clear()
+      ..addAll((decoded['favorites'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .where((id) => stationById(id) != null));
+    _favorites.add(RadioStation.fogPoint.id);
+
+    final selected = decoded['selectedStation'] as String?;
+    _selectedStationId = stationById(selected) == null ? RadioStation.fogPoint.id : selected!;
+    _pinned = decoded['pinned'] as bool? ?? _pinned;
+    await _saveStations();
+    await _savePresets();
+    await _saveFavorites();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_selectedKey, _selectedStationId);
+    await prefs.setBool(_pinnedKey, _pinned);
+    notifyListeners();
+  }
+
   Future<void> _saveStations() async {
     final prefs = await SharedPreferences.getInstance();
-    final customStations = _stations.where((station) => !station.builtIn);
     await prefs.setStringList(
       _stationsKey,
-      customStations.map((station) => jsonEncode(station.toJson())).toList(),
+      _stations.where((station) => !station.builtIn).map((station) => jsonEncode(station.toJson())).toList(),
     );
   }
 
   Future<void> _savePresets() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_presetsKey, _presets.map((id) => id ?? '').toList());
+  }
+
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_favoritesKey, _favorites.toList());
   }
 }
