@@ -6,8 +6,9 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'audio/system_media.dart';
+import 'platform/desktop_tray.dart';
 import 'platform/desktop_window.dart';
-import 'ui/radio_screen_v4.dart';
+import 'ui/radio_screen_v5.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,8 @@ Future<void> main() async {
       windowButtonVisibility: options.windowButtonVisibility ?? false,
     );
     await windowManager.setAsFrameless();
+    await windowManager.setPreventClose(true);
+    await desktopTray.initialize();
   }
 
   runApp(const Radio1940sApp());
@@ -49,11 +52,6 @@ Future<void> main() async {
 }
 
 Future<void> _finishDesktopStartup() async {
-  // Give Flutter a chance to attach and paint its first scene before applying
-  // the native transparency effect. On Linux the generated GTK runner is also
-  // configured with an RGBA visual so Flutter's transparent pixels can be
-  // composited by the desktop instead of falling back to an opaque black
-  // surface.
   await Future<void>.delayed(const Duration(milliseconds: 120));
 
   try {
@@ -75,8 +73,6 @@ Future<void> _finishDesktopStartup() async {
     debugPrintStack(stackTrace: stackTrace);
   }
 
-  // Failsafe for Linux/Wayland compositors: if a plugin races window
-  // visibility, explicitly request visibility again after startup settles.
   await Future<void>.delayed(const Duration(milliseconds: 500));
   try {
     final visible = await windowManager.isVisible();
@@ -102,11 +98,14 @@ class Radio1940sApp extends StatelessWidget {
       theme: ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: Colors.transparent,
         canvasColor: Colors.transparent,
-        dialogTheme: const DialogThemeData(
-          backgroundColor: Color(0xff2a160f),
+        dialogTheme: const DialogThemeData(backgroundColor: Color(0xff2a160f)),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xffffd894),
+          secondary: Color(0xffc59555),
+          surface: Color(0xff2a160f),
         ),
       ),
-      home: const RadioScreenV4(),
+      home: const RadioScreenV5(),
     );
   }
 }
