@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'builtin_station_manifest.dart';
 import 'radio_station.dart';
 
 class StationStore extends ChangeNotifier {
@@ -46,12 +47,26 @@ class StationStore extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+
+    final remoteBuiltIns = await BuiltinStationManifest.fetch();
+    if (remoteBuiltIns.isNotEmpty) {
+      final fogPoint = remoteBuiltIns.where((station) => station.id == RadioStation.fogPoint.id).firstOrNull;
+      if (fogPoint != null) _stations[0] = fogPoint;
+      for (final station in remoteBuiltIns) {
+        if (station.id != RadioStation.fogPoint.id && stationById(station.id) == null) {
+          _stations.add(station);
+        }
+      }
+    }
+
     final rawStations = prefs.getStringList(_stationsKey) ?? const [];
     for (final raw in rawStations) {
       try {
         final decoded = jsonDecode(raw) as Map<String, dynamic>;
         final station = RadioStation.fromJson(decoded);
-        if (station.id != RadioStation.fogPoint.id && station.url.trim().isNotEmpty) {
+        if (station.id != RadioStation.fogPoint.id &&
+            station.url.trim().isNotEmpty &&
+            stationById(station.id) == null) {
           _stations.add(station);
         }
       } catch (_) {}
@@ -186,8 +201,9 @@ class StationStore extends ChangeNotifier {
     }
     final imported = <RadioStation>[];
     for (final item in (decoded['stations'] as List<dynamic>? ?? const [])) {
-      if (item is Map<String, dynamic>) imported.add(RadioStation.fromJson(item));
-      if (item is Map) imported.add(RadioStation.fromJson(Map<String, dynamic>.from(item)));
+      if (item is Map) {
+        imported.add(RadioStation.fromJson(Map<String, dynamic>.from(item)));
+      }
     }
     _stations
       ..removeWhere((station) => !station.builtIn)
@@ -237,5 +253,12 @@ class StationStore extends ChangeNotifier {
   Future<void> _saveFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_favoritesKey, _favorites.toList());
+  }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull {
+    for (final value in this) return value;
+    return null;
   }
 }
