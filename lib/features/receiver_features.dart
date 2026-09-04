@@ -76,11 +76,14 @@ class ReceiverFeatures extends ChangeNotifier {
   bool get alarmGentle => _alarmGentle;
   List<ListeningHistoryEntry> get history => List.unmodifiable(_history);
 
-  DateTime get fogPointTime => DateTime.now().toUtc().subtract(const Duration(hours: 3));
+  DateTime get fogPointTime =>
+      DateTime.now().toUtc().subtract(const Duration(hours: 3));
 
   Duration? get sleepRemaining {
     final until = _sleepUntil;
-    if (until == null) return null;
+    if (until == null) {
+      return null;
+    }
     final remaining = until.difference(DateTime.now());
     return remaining.isNegative ? Duration.zero : remaining;
   }
@@ -99,18 +102,25 @@ class ReceiverFeatures extends ChangeNotifier {
     _compactMode = prefs.getBool(_compactKey) ?? false;
     final sleepRaw = prefs.getString(_sleepKey);
     final parsedSleep = sleepRaw == null ? null : DateTime.tryParse(sleepRaw);
-    if (parsedSleep != null && parsedSleep.isAfter(DateTime.now())) _sleepUntil = parsedSleep;
+    if (parsedSleep != null && parsedSleep.isAfter(DateTime.now())) {
+      _sleepUntil = parsedSleep;
+    }
     _alarmEnabled = prefs.getBool(_alarmEnabledKey) ?? false;
     _alarmHour = prefs.getInt(_alarmHourKey) ?? 7;
     _alarmMinute = prefs.getInt(_alarmMinuteKey) ?? 0;
     _alarmDaysMask = prefs.getInt(_alarmDaysKey) ?? 0x7f;
     _alarmStationId = prefs.getString(_alarmStationKey);
-    _alarmVolume = (prefs.getDouble(_alarmVolumeKey) ?? 55).clamp(0, 100).toDouble();
+    _alarmVolume =
+        (prefs.getDouble(_alarmVolumeKey) ?? 55).clamp(0, 100).toDouble();
     _alarmGentle = prefs.getBool(_alarmGentleKey) ?? true;
     final rawHistory = prefs.getStringList(_historyKey) ?? const [];
     for (final raw in rawHistory) {
       try {
-        _history.add(ListeningHistoryEntry.fromJson(jsonDecode(raw) as Map<String, dynamic>));
+        _history.add(
+          ListeningHistoryEntry.fromJson(
+            jsonDecode(raw) as Map<String, dynamic>,
+          ),
+        );
       } catch (_) {}
     }
     _loaded = true;
@@ -144,7 +154,9 @@ class ReceiverFeatures extends ChangeNotifier {
 
   Future<void> setSleepTimer(Duration? duration) async {
     _sleepUntil = duration == null ? null : DateTime.now().add(duration);
-    if (duration == null) _onSleepFade?.call(1);
+    if (duration == null) {
+      _onSleepFade?.call(1);
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     if (_sleepUntil == null) {
@@ -166,10 +178,18 @@ class ReceiverFeatures extends ChangeNotifier {
     _alarmEnabled = enabled;
     _alarmHour = hour.clamp(0, 23);
     _alarmMinute = minute.clamp(0, 59);
-    if (daysMask != null) _alarmDaysMask = daysMask.clamp(1, 0x7f);
-    if (stationId != null) _alarmStationId = stationId;
-    if (volume != null) _alarmVolume = volume.clamp(0, 100).toDouble();
-    if (gentle != null) _alarmGentle = gentle;
+    if (daysMask != null) {
+      _alarmDaysMask = daysMask.clamp(1, 0x7f);
+    }
+    if (stationId != null) {
+      _alarmStationId = stationId;
+    }
+    if (volume != null) {
+      _alarmVolume = volume.clamp(0, 100).toDouble();
+    }
+    if (gentle != null) {
+      _alarmGentle = gentle;
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_alarmEnabledKey, _alarmEnabled);
@@ -187,15 +207,31 @@ class ReceiverFeatures extends ChangeNotifier {
 
   Future<void> recordNowPlaying(RadioStation station, String title) async {
     final clean = title.trim();
-    if (clean.isEmpty) return;
+    if (clean.isEmpty) {
+      return;
+    }
     if (_history.isNotEmpty &&
         _history.first.stationName == station.name &&
-        _history.first.title == clean) return;
-    _history.insert(0, ListeningHistoryEntry(stationName: station.name, title: clean, at: DateTime.now()));
-    if (_history.length > 50) _history.removeRange(50, _history.length);
+        _history.first.title == clean) {
+      return;
+    }
+    _history.insert(
+      0,
+      ListeningHistoryEntry(
+        stationName: station.name,
+        title: clean,
+        at: DateTime.now(),
+      ),
+    );
+    if (_history.length > 50) {
+      _history.removeRange(50, _history.length);
+    }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_historyKey, _history.map((entry) => jsonEncode(entry.toJson())).toList());
+    await prefs.setStringList(
+      _historyKey,
+      _history.map((entry) => jsonEncode(entry.toJson())).toList(),
+    );
   }
 
   Future<void> clearHistory() async {
@@ -211,14 +247,18 @@ class ReceiverFeatures extends ChangeNotifier {
     if (sleep != null) {
       final remaining = sleep.difference(now);
       if (!remaining.isNegative && remaining <= const Duration(seconds: 60)) {
-        _onSleepFade?.call((remaining.inMilliseconds / 60000).clamp(0.0, 1.0));
+        _onSleepFade?.call(
+          (remaining.inMilliseconds / 60000).clamp(0.0, 1.0),
+        );
       }
       if (!sleep.isAfter(now)) {
         _sleepUntil = null;
         _onSleepFade?.call(1);
         SharedPreferences.getInstance().then((prefs) => prefs.remove(_sleepKey));
         final callback = _onSleepElapsed;
-        if (callback != null) unawaited(callback());
+        if (callback != null) {
+          unawaited(callback());
+        }
       }
     }
 
@@ -230,7 +270,9 @@ class ReceiverFeatures extends ChangeNotifier {
       if (_lastAlarmDay != dayKey) {
         _lastAlarmDay = dayKey;
         final callback = _onAlarm;
-        if (callback != null) unawaited(callback());
+        if (callback != null) {
+          unawaited(callback());
+        }
       }
     }
     notifyListeners();
