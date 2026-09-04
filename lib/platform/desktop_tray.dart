@@ -15,28 +15,32 @@ class DesktopTrayController with TrayListener {
   Future<void> Function()? _quit;
   bool _initialized = false;
 
-  Future<void> initialize({required Future<void> Function() quit}) async {
+  Future<void> initialize() async {
     if (!isDesktopPlatform || _initialized) return;
     _initialized = true;
-    _quit = quit;
     trayManager.addListener(this);
-    final icon = _resolveIcon();
     try {
-      await trayManager.setIcon(icon);
+      await trayManager.setIcon(_resolveIcon());
       await _rebuildMenu();
     } catch (error) {
       debugPrint('System tray unavailable: $error');
     }
   }
 
-  void bind({required RadioPlayer radio, required StationStore stations}) {
-    if (_radio == radio && _stations == stations) return;
-    _radio?.removeListener(_rebuildMenuUnawaited);
-    _stations?.removeListener(_rebuildMenuUnawaited);
-    _radio = radio;
-    _stations = stations;
-    radio.addListener(_rebuildMenuUnawaited);
-    stations.addListener(_rebuildMenuUnawaited);
+  void bind({
+    required RadioPlayer radio,
+    required StationStore stations,
+    required Future<void> Function() quit,
+  }) {
+    if (_radio != radio || _stations != stations) {
+      _radio?.removeListener(_rebuildMenuUnawaited);
+      _stations?.removeListener(_rebuildMenuUnawaited);
+      _radio = radio;
+      _stations = stations;
+      radio.addListener(_rebuildMenuUnawaited);
+      stations.addListener(_rebuildMenuUnawaited);
+    }
+    _quit = quit;
     _rebuildMenuUnawaited();
   }
 
@@ -60,30 +64,16 @@ class DesktopTrayController with TrayListener {
       MenuItem.separator(),
     ];
     if (radio != null) {
-      items.add(MenuItem(
-        key: 'power',
-        label: radio.poweredOn ? 'Power Off' : 'Power On',
-      ));
-      items.add(MenuItem(
-        key: 'volume_down',
-        label: 'Volume -10%',
-        disabled: radio.volume <= 0,
-      ));
-      items.add(MenuItem(
-        key: 'volume_up',
-        label: 'Volume +10%',
-        disabled: radio.volume >= 100,
-      ));
+      items.add(MenuItem(key: 'power', label: radio.poweredOn ? 'Power Off' : 'Power On'));
+      items.add(MenuItem(key: 'volume_down', label: 'Volume -10%', disabled: radio.volume <= 0));
+      items.add(MenuItem(key: 'volume_up', label: 'Volume +10%', disabled: radio.volume >= 100));
     }
     if (stations != null) {
       items.add(MenuItem.separator());
       for (var index = 0; index < stations.presets.length; index++) {
         final station = stations.stationById(stations.presets[index]);
         if (station != null) {
-          items.add(MenuItem(
-            key: 'preset:$index',
-            label: 'Preset ${index + 1}: ${station.name}',
-          ));
+          items.add(MenuItem(key: 'preset:$index', label: 'Preset ${index + 1}: ${station.name}'));
         }
       }
     }
