@@ -111,6 +111,7 @@ class RadioPlayer extends ChangeNotifier {
     _warmingUp = true;
     _errorMessage = null;
     _connectionState = RadioConnectionState.connecting;
+    await _syncAtmosphereBed();
     _publishSystemState();
     notifyListeners();
     await _player.setVolume(_volume);
@@ -142,6 +143,7 @@ class RadioPlayer extends ChangeNotifier {
       _poweredOn = true;
       _warmingUp = true;
       _connectionState = RadioConnectionState.connecting;
+      await _syncAtmosphereBed();
       _publishSystemState();
       notifyListeners();
       await _playAtmosphereBurst();
@@ -173,6 +175,7 @@ class RadioPlayer extends ChangeNotifier {
     _metadataTimer?.cancel();
     _reconnectTimer?.cancel();
     _sleepFadeBaseVolume = null;
+    await _atmosphere.setPeriodBed(false);
     await _player.stop();
     _connectionState = RadioConnectionState.off;
     _errorMessage = null;
@@ -249,9 +252,16 @@ class RadioPlayer extends ChangeNotifier {
 
   Future<void> setAtmosphereMode(AtmosphereMode mode) async {
     _atmosphereMode = mode;
+    await _syncAtmosphereBed();
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_atmosphereKey, mode.index);
+  }
+
+  Future<void> _syncAtmosphereBed() {
+    return _atmosphere.setPeriodBed(
+      _poweredOn && _atmosphereMode == AtmosphereMode.period,
+    );
   }
 
   Future<void> _playAtmosphereBurst() async {
@@ -358,6 +368,9 @@ class RadioPlayer extends ChangeNotifier {
     await _errorSubscription?.cancel();
     try {
       await _player.stop();
+    } catch (_) {}
+    try {
+      await _atmosphere.setPeriodBed(false);
     } catch (_) {}
     try {
       await _atmosphere.dispose();
