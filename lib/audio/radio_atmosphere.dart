@@ -9,11 +9,11 @@ class RadioAtmosphere {
   final AudioPlayer _player;
   Uint8List? _staticBurst;
 
-  Future<void> playTuningBurst() async {
+  Future<void> playTuningBurst({double gain = .18}) async {
     final bytes = _staticBurst ??= _buildStaticBurst();
     try {
       await _player.stop();
-      await _player.setVolume(.18);
+      await _player.setVolume(gain.clamp(0.0, 1.0));
       await _player.play(BytesSource(bytes, mimeType: 'audio/wav'));
     } catch (_) {
       // Atmosphere must never interfere with receiving a station.
