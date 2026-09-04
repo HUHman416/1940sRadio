@@ -34,6 +34,7 @@ class RadioPlayer extends ChangeNotifier {
   int _reconnectAttempt = 0;
   AtmosphereMode _atmosphereMode = AtmosphereMode.subtle;
   RadioStation _station = RadioStation.fogPoint;
+  double? _sleepFadeBaseVolume;
 
   RadioConnectionState get connectionState => _connectionState;
   double get volume => _volume;
@@ -48,7 +49,7 @@ class RadioPlayer extends ChangeNotifier {
   Future<void> initialize({RadioStation? initialStation}) async {
     if (initialStation != null) _station = initialStation;
     final prefs = await SharedPreferences.getInstance();
-    _volume = (prefs.getDouble(_volumeKey) ?? 72).clamp(0, 100);
+    _volume = (prefs.getDouble(_volumeKey) ?? 72).clamp(0, 100).toDouble();
     final atmosphereIndex = prefs.getInt(_atmosphereKey) ?? AtmosphereMode.subtle.index;
     if (atmosphereIndex >= 0 && atmosphereIndex < AtmosphereMode.values.length) {
       _atmosphereMode = AtmosphereMode.values[atmosphereIndex];
@@ -85,6 +86,7 @@ class RadioPlayer extends ChangeNotifier {
     _connectionState = RadioConnectionState.connecting;
     _publishSystemState();
     notifyListeners();
+    await _player.setVolume(_volume);
     await _playAtmosphereBurst();
     await Future<void>.delayed(const Duration(milliseconds: 750));
     if (!_poweredOn || _shuttingDown) return;
@@ -93,12 +95,47 @@ class RadioPlayer extends ChangeNotifier {
     _startMetadataPolling();
   }
 
+  Future<void> wakeAtVolume(double target, {required bool gentle}) async {
+    final wakeVolume = target.clamp(0, 100).toDouble();
+    _volume = wakeVolume;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_volumeKey, _volume);
+    if (!gentle) {
+      await _player.setVolume(_volume);
+      if (!_poweredOn) await powerOn();
+      return;
+    }
+
+    if (!_poweredOn) {
+      await _player.setVolume(0);
+      _poweredOn = true;
+      _warmingUp = true;
+      _connectionState = RadioConnectionState.connecting;
+      _publishSystemState();
+      notifyListeners();
+      await _playAtmosphereBurst();
+      await Future<void>.delayed(const Duration(milliseconds: 750));
+      if (_shuttingDown) return;
+      _warmingUp = false;
+      await _openCurrentStation();
+      _startMetadataPolling();
+    }
+
+    for (var step = 1; step <= 20; step++) {
+      if (!_poweredOn || _shuttingDown) return;
+      await _player.setVolume(wakeVolume * step / 20);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    notifyListeners();
+  }
+
   Future<void> powerOff() async {
     if (!_poweredOn) return;
     _poweredOn = false;
     _warmingUp = false;
     _metadataTimer?.cancel();
     _reconnectTimer?.cancel();
+    _sleepFadeBaseVolume = null;
     await _player.stop();
     _connectionState = RadioConnectionState.off;
     _errorMessage = null;
@@ -140,11 +177,25 @@ class RadioPlayer extends ChangeNotifier {
   }
 
   Future<void> setVolume(double value) async {
+    _sleepFadeBaseVolume = null;
     _volume = value.clamp(0, 100).toDouble();
     await _player.setVolume(_volume);
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_volumeKey, _volume);
+  }
+
+  void applySleepFade(double factor) {
+    if (!_poweredOn || _shuttingDown) return;
+    final clamped = factor.clamp(0.0, 1.0).toDouble();
+    if (clamped >= .999) {
+      final base = _sleepFadeBaseVolume;
+      _sleepFadeBaseVolume = null;
+      if (base != null) unawaited(_player.setVolume(base));
+      return;
+    }
+    _sleepFadeBaseVolume ??= _volume;
+    unawaited(_player.setVolume((_sleepFadeBaseVolume! * clamped).clamp(0, 100).toDouble()));
   }
 
   Future<void> setAtmosphereMode(AtmosphereMode mode) async {
@@ -189,8 +240,8 @@ class RadioPlayer extends ChangeNotifier {
 
   void _scheduleReconnect() {
     if (!_poweredOn || _shuttingDown || _reconnectTimer?.isActive == true) return;
-    _reconnectAttempt = (_reconnectAttempt + 1).clamp(1, 6);
-    final seconds = (2 << (_reconnectAttempt - 1)).clamp(2, 30);
+    _reconnectAttempt = (_reconnectAttempt + 1).clamp(1, 6).toInt();
+    final seconds = (2 << (_reconnectAttempt - 1)).clamp(2, 30).toInt();
     _reconnectTimer = Timer(Duration(seconds: seconds), () => unawaited(_openCurrentStation()));
   }
 
