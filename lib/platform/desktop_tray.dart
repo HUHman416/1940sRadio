@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' hide MenuItem;
+import 'package:flutter/material.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -16,7 +16,9 @@ class DesktopTrayController with TrayListener {
   bool _initialized = false;
 
   Future<void> initialize() async {
-    if (!isDesktopPlatform || _initialized) return;
+    if (!isDesktopPlatform || _initialized) {
+      return;
+    }
     _initialized = true;
     trayManager.addListener(this);
     try {
@@ -41,7 +43,9 @@ class DesktopTrayController with TrayListener {
 
   String _resolveIcon() {
     final appDir = Platform.environment['APPDIR'];
-    if (appDir != null && appDir.isNotEmpty) return '$appDir/radio1940s.png';
+    if (appDir != null && appDir.isNotEmpty) {
+      return '$appDir/radio1940s.png';
+    }
     final home = Platform.environment['HOME'] ?? '';
     return '$home/.local/share/icons/hicolor/scalable/apps/radio1940s.svg';
   }
@@ -51,7 +55,9 @@ class DesktopTrayController with TrayListener {
   }
 
   Future<void> _rebuildMenu() async {
-    if (!_initialized) return;
+    if (!_initialized) {
+      return;
+    }
     final radio = _radio;
     final stations = _stations;
     final items = <MenuItem>[
@@ -59,16 +65,38 @@ class DesktopTrayController with TrayListener {
       MenuItem.separator(),
     ];
     if (radio != null) {
-      items.add(MenuItem(key: 'power', label: radio.poweredOn ? 'Power Off' : 'Power On'));
-      items.add(MenuItem(key: 'volume_down', label: 'Volume -10%', disabled: radio.volume <= 0));
-      items.add(MenuItem(key: 'volume_up', label: 'Volume +10%', disabled: radio.volume >= 100));
+      items.add(
+        MenuItem(
+          key: 'power',
+          label: radio.poweredOn ? 'Power Off' : 'Power On',
+        ),
+      );
+      items.add(
+        MenuItem(
+          key: 'volume_down',
+          label: 'Volume -10%',
+          disabled: radio.volume <= 0,
+        ),
+      );
+      items.add(
+        MenuItem(
+          key: 'volume_up',
+          label: 'Volume +10%',
+          disabled: radio.volume >= 100,
+        ),
+      );
     }
     if (stations != null) {
       items.add(MenuItem.separator());
       for (var index = 0; index < stations.presets.length; index++) {
         final station = stations.stationById(stations.presets[index]);
         if (station != null) {
-          items.add(MenuItem(key: 'preset:$index', label: 'Preset ${index + 1}: ${station.name}'));
+          items.add(
+            MenuItem(
+              key: 'preset:$index',
+              label: 'Preset ${index + 1}: ${station.name}',
+            ),
+          );
         }
       }
     }
@@ -103,7 +131,10 @@ class DesktopTrayController with TrayListener {
       radio.setVolume(radio.volume - 10);
     } else if (key == 'volume_up' && radio != null) {
       radio.setVolume(radio.volume + 10);
-    } else if (key != null && key.startsWith('preset:') && radio != null && stations != null) {
+    } else if (key != null &&
+        key.startsWith('preset:') &&
+        radio != null &&
+        stations != null) {
       final index = int.tryParse(key.substring(7));
       if (index != null && index >= 0 && index < stations.presets.length) {
         final station = stations.stationById(stations.presets[index]);
