@@ -2,82 +2,125 @@
 
 A cross-platform 1940s-inspired internet radio application, with **Fog Point Radio** as its featured station.
 
-## Build 0.2.0
+## Build 0.5 — The Receiver Update
 
-Build 0.2 turns the first Fog Point receiver into a persistent general-purpose internet radio while keeping the physical 1940s tabletop-radio presentation.
+Build 0.5 turns the project from a themed stream player into a more complete desktop receiver while preserving the physical 1940s tabletop-radio presentation.
 
-### Included
+### Featured signal
 
-- Fog Point Radio built in as the featured/default station: `https://streaming.live365.com/a25002`
+Fog Point Radio now uses the current Radio.co direct stream:
+
+```text
+https://s4.radio.co/s3ff272827/listen
+```
+
+The app also checks a small built-in-station manifest hosted with the repository. If Fog Point moves again, the manifest can update its primary/fallback endpoint without requiring a full application release; the compiled-in Radio.co URL remains the offline fallback.
+
+### Receiver features
+
 - Real stream playback using `media_kit`
-- Power on/off and adjustable volume controls
-- Signal/connection/error states with retry
-- Frameless transparent desktop window: visually, the application is just the radio cabinet
-- No operating-system title bar on Linux, Windows, or macOS
-- Position-lock/pin button built into the radio
-  - pin off: drag the radio using decorative/non-control areas
-  - pin on: radio position is locked
-- In-radio minimize and close buttons for desktop
-- Persistent station directory
-- Add arbitrary `http://` or `https://` direct stream URLs
-- Edit and remove user-added stations
-- Current station name/subtitle shown on the illuminated dial
-- Tuning needle moves as saved stations change
-- Six persistent user-assignable presets
-  - click an assigned preset to tune
-  - click an empty preset to store the current station
-  - hold a preset to replace it with the current station
-  - right-click a preset to clear it
-- Fog Point starts in preset 1 by default
-- Responsive radio layout groundwork for desktop and future mobile targets
-- Linux x86_64 AppImage CI artifact and GitHub Release packaging
+- Responsive full-cabinet and compact-receiver layouts
+- Slider-based station tuning designed for mouse and future touch use
+- Tuning static and optional radio-atmosphere modes: Off, Subtle, Period
+- Tube warm-up behavior and animated signal/tuning eye
+- Persistent power-adjacent receiver state, volume, station selection, presets, favorites, lamp, window placement and compact mode
+- Six physical/mechanical station presets
+- Favorites kept separate from presets
+- Custom direct HTTP/HTTPS station directory
+- `TEST SIGNAL` check before saving a custom stream
+- Best-effort ICY Now Playing information and recent listening history
+- Automatic reconnect with bounded backoff and support for fallback station endpoints
+- Sleep timer with final-minute volume fade
+- Wake alarm with selectable days, wake station, wake volume and optional gentle tube warm-up
+- Receiver configuration import/export (`.json`)
+- Frameless transparent desktop cabinet
+- Position lock/pin and restored desktop position/size
+- Desktop tray controls for show, power, volume, presets and graceful quit
+- Close/hide-to-tray behavior plus a separate real Quit path
+- Ordered media shutdown before window destruction to avoid the earlier Linux/manual-close teardown crash
+- Android/iOS background media-control groundwork remains in the shared Flutter codebase
 
-## Linux AppImage
+## Linux downloads
 
-GitHub Actions builds the Linux version on pushes to `build-0.2`, pull requests into `main`, and pushes to `main`.
+Build 0.5 intentionally ships in **two forms**.
 
-The workflow:
+### Portable AppImage
 
-1. Installs the current stable Flutter toolchain.
-2. Generates the Linux Flutter runner.
-3. Resolves dependencies.
-4. Runs `flutter analyze lib`.
-5. Builds a release-mode Linux bundle.
-6. Packages it as `1940sRadio-0.2.0-x86_64.AppImage` using linuxdeploy and appimagetool.
-7. Uploads the AppImage as a GitHub Actions artifact.
-8. On `main`, publishes the AppImage in the `v0.2.0` GitHub Release.
+`1940sRadio-0.5.0-x86_64.AppImage`
 
-## Local development
+Use this when you want to try the application, keep it portable, or do not want a normal installation. Mark it executable and run it directly.
 
-Install Flutter with Linux desktop support, then run:
+### Installable desktop archive
+
+`1940sRadio-0.5.0-Linux-x86_64.tar.gz`
+
+Extract the archive and run:
+
+```bash
+./install.sh
+```
+
+The installer is per-user and does not require `sudo`. It installs the release bundle under:
+
+```text
+~/.local/share/radio1940s/
+```
+
+and creates:
+
+- a normal desktop/application-menu launcher
+- `~/.local/bin/radio1940s`
+- `~/.local/bin/uninstall-radio1940s`
+
+To uninstall:
+
+```bash
+uninstall-radio1940s
+```
+
+Receiver preferences are intentionally left in the platform preferences store so reinstalling does not erase station/preset configuration.
+
+## Local Linux development
+
+Install Flutter with Linux desktop support and the required native packages (GTK, MPV/GStreamer, and AppIndicator development files), then run:
 
 ```bash
 flutter create . --platforms=linux --org com.huhman416 --project-name radio1940s
+bash scripts/configure_linux_transparency.sh
 flutter pub get
 flutter run -d linux
 ```
 
-For a local release build:
+For a release build:
 
 ```bash
 flutter build linux --release
-bash scripts/package_appimage.sh 0.2.0
 ```
 
-The generated AppImage is placed under:
+Create the portable AppImage:
 
-```text
-build/appimage/out/
+```bash
+bash scripts/package_appimage.sh 0.5.0
 ```
 
-## Planned targets
+Create the installable desktop archive:
 
-The shared Flutter application architecture targets:
+```bash
+bash scripts/package_linux_installer.sh 0.5.0
+```
 
-- Linux (AppImage)
-- Windows
-- macOS
-- Android
-- iOS
+Or install the local release bundle directly for the current user:
 
-Later builds can add stream metadata/now-playing information, favorites, expanded tuner behavior, mobile background playback and lock-screen controls, alarms/sleep timers, and deeper period-radio interaction.
+```bash
+bash scripts/install_linux.sh
+```
+
+## Targets
+
+The shared Flutter codebase targets:
+
+- Linux — primary desktop target; AppImage + installable desktop archive
+- Windows — shared desktop receiver groundwork
+- macOS — shared desktop receiver groundwork
+- Android — background playback/media controls groundwork
+- iOS — background playback/media controls groundwork
